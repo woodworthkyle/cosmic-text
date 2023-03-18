@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use cosmic_text::{
-    Action, Attrs, Buffer, Edit, Family, FontSystem, Metrics, SwashCache, SyntaxEditor,
-    SyntaxSystem,
+    Action, Attrs, Buffer, Edit, Family, Metrics, SwashCache, SyntaxEditor, SyntaxSystem,
 };
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
 use std::{
@@ -40,8 +39,6 @@ fn main() {
     )
     .unwrap();
 
-    let mut font_system = FontSystem::new();
-
     let syntax_system = SyntaxSystem::new();
 
     let font_sizes = [
@@ -58,7 +55,7 @@ fn main() {
     let line_x = 8.0 * display_scale;
 
     let mut editor = SyntaxEditor::new(
-        Buffer::new(&mut font_system, font_sizes[font_size_i]),
+        Buffer::new(font_sizes[font_size_i]),
         &syntax_system,
         "base16-eighties.dark",
     )
@@ -66,8 +63,6 @@ fn main() {
 
     #[cfg(feature = "vi")]
     let mut editor = cosmic_text::ViEditor::new(editor);
-
-    let mut editor = editor.borrow_with(&mut font_system);
 
     editor
         .buffer_mut()

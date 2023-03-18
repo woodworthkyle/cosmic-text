@@ -112,8 +112,6 @@ pub enum Message {
 impl Window {
     pub fn open(&mut self, path: PathBuf) {
         let mut editor = self.editor.lock().unwrap();
-        let mut font_system = FONT_SYSTEM.lock().unwrap();
-        let mut editor = editor.borrow_with(&mut font_system);
         match editor.load_text(&path, self.attrs) {
             Ok(()) => {
                 log::info!("opened '{}'", path.display());
@@ -139,10 +137,7 @@ impl Application for Window {
             .family(cosmic_text::Family::Monospace);
 
         let mut editor = SyntaxEditor::new(
-            Buffer::new(
-                &mut FONT_SYSTEM.lock().unwrap(),
-                FontSize::Body.to_metrics(),
-            ),
+            Buffer::new(FontSize::Body.to_metrics()),
             &SYNTAX_SYSTEM,
             "base16-eighties.dark",
         )
@@ -243,17 +238,11 @@ impl Application for Window {
             Message::FontSizeChanged(font_size) => {
                 self.font_size = font_size;
                 let mut editor = self.editor.lock().unwrap();
-                editor
-                    .borrow_with(&mut FONT_SYSTEM.lock().unwrap())
-                    .buffer_mut()
-                    .set_metrics(font_size.to_metrics());
+                editor.buffer_mut().set_metrics(font_size.to_metrics());
             }
             Message::WrapChanged(wrap) => {
                 let mut editor = self.editor.lock().unwrap();
-                editor
-                    .borrow_with(&mut FONT_SYSTEM.lock().unwrap())
-                    .buffer_mut()
-                    .set_wrap(wrap);
+                editor.buffer_mut().set_wrap(wrap);
             }
             Message::AlignmentChanged(align) => {
                 let mut editor = self.editor.lock().unwrap();

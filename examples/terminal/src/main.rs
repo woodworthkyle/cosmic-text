@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use cosmic_text::{Attrs, Buffer, Color, FontSystem, Metrics, SwashCache};
+use cosmic_text::{Attrs, Buffer, Color, Metrics, SwashCache};
 use std::cmp::{self, Ordering};
 use termion::{color, cursor};
 
 fn main() {
-    // A FontSystem provides access to detected system fonts, create one per application
-    let mut font_system = FontSystem::new();
-
     // A SwashCache stores rasterized glyphs, create one per application
     let mut swash_cache = SwashCache::new();
 
@@ -15,9 +12,7 @@ fn main() {
     let metrics = Metrics::new(14.0, 20.0);
 
     // A Buffer provides shaping and layout for a UTF-8 string, create one per text widget
-    let mut buffer = Buffer::new(&mut font_system, metrics);
-
-    let mut buffer = buffer.borrow_with(&mut font_system);
+    let mut buffer = Buffer::new(metrics);
 
     // Set a size for the text buffer, in pixels
     let width = 80u16;

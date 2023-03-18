@@ -9,7 +9,7 @@ use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fallback::FontFallbackIter;
-use crate::{Align, AttrsList, CacheKey, Color, Font, FontSystem, LayoutGlyph, LayoutLine, Wrap};
+use crate::{Align, AttrsList, CacheKey, Color, Font, LayoutGlyph, LayoutLine, Wrap, FONT_SYSTEM};
 
 fn shape_fallback(
     font: &Font,
@@ -105,7 +105,6 @@ fn shape_fallback(
 }
 
 fn shape_run(
-    font_system: &mut FontSystem,
     line: &str,
     attrs_list: &AttrsList,
     start_run: usize,
@@ -129,10 +128,10 @@ fn shape_run(
 
     let attrs = attrs_list.get_span(start_run);
 
-    let fonts = font_system.get_font_matches(attrs);
+    let fonts = FONT_SYSTEM.get_font_matches(attrs);
 
     let default_families = [&attrs.family];
-    let mut font_iter = FontFallbackIter::new(font_system, &fonts, &default_families, scripts);
+    let mut font_iter = FontFallbackIter::new(&fonts, &default_families, scripts);
 
     let font = font_iter.next().expect("no default font found");
 
@@ -148,7 +147,7 @@ fn shape_run(
 
         log::trace!(
             "Evaluating fallback with font '{}'",
-            font_iter.face_name(font.id())
+            FONT_SYSTEM.face_name(font.id())
         );
         let (mut fb_glyphs, fb_missing) =
             shape_fallback(&font, line, attrs_list, start_run, end_run, span_rtl);
@@ -274,7 +273,6 @@ pub struct ShapeWord {
 
 impl ShapeWord {
     pub fn new(
-        font_system: &mut FontSystem,
         line: &str,
         attrs_list: &AttrsList,
         word_range: Range<usize>,
@@ -300,12 +298,7 @@ impl ShapeWord {
             if !attrs.compatible(&attrs_egc) {
                 //TODO: more efficient
                 glyphs.append(&mut shape_run(
-                    font_system,
-                    line,
-                    attrs_list,
-                    start_run,
-                    start_egc,
-                    span_rtl,
+                    line, attrs_list, start_run, start_egc, span_rtl,
                 ));
 
                 start_run = start_egc;
@@ -315,7 +308,6 @@ impl ShapeWord {
         if start_run < word_range.end {
             //TODO: more efficient
             glyphs.append(&mut shape_run(
-                font_system,
                 line,
                 attrs_list,
                 start_run,
@@ -348,7 +340,6 @@ pub struct ShapeSpan {
 
 impl ShapeSpan {
     pub fn new(
-        font_system: &mut FontSystem,
         line: &str,
         attrs_list: &AttrsList,
         span_range: Range<usize>,
@@ -378,7 +369,6 @@ impl ShapeSpan {
             }
             if start_word < start_lb {
                 words.push(ShapeWord::new(
-                    font_system,
                     line,
                     attrs_list,
                     (span_range.start + start_word)..(span_range.start + start_lb),
@@ -390,7 +380,6 @@ impl ShapeSpan {
                 for (i, c) in span[start_lb..end_lb].char_indices() {
                     // assert!(c.is_whitespace());
                     words.push(ShapeWord::new(
-                        font_system,
                         line,
                         attrs_list,
                         (span_range.start + start_lb + i)
@@ -439,7 +428,7 @@ impl ShapeLine {
     /// # Panics
     ///
     /// Will panic if `line` contains more than one paragraph.
-    pub fn new(font_system: &mut FontSystem, line: &str, attrs_list: &AttrsList) -> Self {
+    pub fn new(line: &str, attrs_list: &AttrsList) -> Self {
         let mut spans = Vec::new();
 
         let bidi = unicode_bidi::BidiInfo::new(line, None);
@@ -469,7 +458,6 @@ impl ShapeLine {
                 if new_level != run_level {
                     // End of the previous run, start of a new one.
                     spans.push(ShapeSpan::new(
-                        font_system,
                         line,
                         attrs_list,
                         start..i,
@@ -481,7 +469,6 @@ impl ShapeLine {
                 }
             }
             spans.push(ShapeSpan::new(
-                font_system,
                 line,
                 attrs_list,
                 start..line_range.end,

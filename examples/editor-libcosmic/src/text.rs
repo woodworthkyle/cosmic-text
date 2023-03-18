@@ -14,8 +14,6 @@ use cosmic::{
 use cosmic_text::{Attrs, AttrsList, BufferLine, Metrics, SwashCache};
 use std::{cmp, sync::Mutex, time::Instant};
 
-use crate::FONT_SYSTEM;
-
 pub struct Appearance {
     background_color: Option<Color>,
     text_color: Color,
@@ -53,7 +51,7 @@ impl Text {
         let mut line = BufferLine::new(string, AttrsList::new(Attrs::new()));
 
         //TODO: do we have to immediately shape?
-        line.shape(&mut FONT_SYSTEM.lock().unwrap());
+        line.shape();
 
         let text = Self {
             line,
@@ -175,16 +173,11 @@ where
                     None => text_color,
                 };
 
-                cache.with_pixels(
-                    &mut FONT_SYSTEM.lock().unwrap(),
-                    cache_key,
-                    glyph_color,
-                    |pixel_x, pixel_y, color| {
-                        let x = x_int + pixel_x;
-                        let y = line_y as i32 + y_int + pixel_y;
-                        draw_pixel(&mut pixels, layout_w as i32, layout_h as i32, x, y, color);
-                    },
-                );
+                cache.with_pixels(cache_key, glyph_color, |pixel_x, pixel_y, color| {
+                    let x = x_int + pixel_x;
+                    let y = line_y as i32 + y_int + pixel_y;
+                    draw_pixel(&mut pixels, layout_w as i32, layout_h as i32, x, y, color);
+                });
             }
             line_y += self.metrics.line_height;
         }

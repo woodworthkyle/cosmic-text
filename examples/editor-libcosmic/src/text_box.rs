@@ -1,7 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use crate::FONT_SYSTEM;
-
 use super::text;
 use cosmic::{
     iced_native::{
@@ -95,10 +93,7 @@ where
 
         //TODO: allow lazy shape
         let mut editor = self.editor.lock().unwrap();
-        editor
-            .borrow_with(&mut FONT_SYSTEM.lock().unwrap())
-            .buffer_mut()
-            .shape_until(i32::max_value());
+        editor.buffer_mut().shape_until(i32::max_value());
 
         let mut layout_lines = 0;
         for line in editor.buffer().lines.iter() {
@@ -167,9 +162,6 @@ where
 
         let view_w = viewport.width.min(layout.bounds().width) - self.padding.horizontal() as f32;
         let view_h = viewport.height.min(layout.bounds().height) - self.padding.vertical() as f32;
-
-        let mut font_system = FONT_SYSTEM.lock().unwrap();
-        let mut editor = editor.borrow_with(&mut font_system);
 
         editor.buffer_mut().set_size(view_w, view_h);
 
@@ -241,8 +233,6 @@ where
     ) -> Status {
         let state = tree.state.downcast_mut::<State>();
         let mut editor = self.editor.lock().unwrap();
-        let mut font_system = FONT_SYSTEM.lock().unwrap();
-        let mut editor = editor.borrow_with(&mut font_system);
 
         let mut status = Status::Ignored;
         match event {

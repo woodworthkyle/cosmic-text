@@ -1,7 +1,7 @@
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
 
-use crate::{Align, AttrsList, FontSystem, LayoutLine, ShapeLine, Wrap};
+use crate::{Align, AttrsList, LayoutLine, ShapeLine, Wrap};
 
 /// A line (or paragraph) of text that is shaped and laid out
 pub struct BufferLine {
@@ -167,9 +167,9 @@ impl BufferLine {
     }
 
     /// Shape line, will cache results
-    pub fn shape(&mut self, font_system: &mut FontSystem) -> &ShapeLine {
+    pub fn shape(&mut self) -> &ShapeLine {
         if self.shape_opt.is_none() {
-            self.shape_opt = Some(ShapeLine::new(font_system, &self.text, &self.attrs_list));
+            self.shape_opt = Some(ShapeLine::new(&self.text, &self.attrs_list));
             self.layout_opt = None;
         }
         self.shape_opt.as_ref().expect("shape not found")
@@ -181,16 +181,11 @@ impl BufferLine {
     }
 
     /// Layout line, will cache results
-    pub fn layout(
-        &mut self,
-        font_system: &mut FontSystem,
-        width: f32,
-        wrap: Wrap,
-    ) -> &[LayoutLine] {
+    pub fn layout(&mut self, width: f32, wrap: Wrap) -> &[LayoutLine] {
         if self.layout_opt.is_none() {
             self.wrap = wrap;
             let align = self.align;
-            let shape = self.shape(font_system);
+            let shape = self.shape();
             let layout = shape.layout(width, wrap, align);
             self.layout_opt = Some(layout);
         }

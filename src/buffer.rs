@@ -10,10 +10,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(feature = "swash")]
 use crate::Color;
-use crate::{
-    Attrs, AttrsList, BorrowedWithFontSystem, BufferLine, FontSystem, LayoutGlyph, LayoutLine,
-    ShapeLine, Wrap,
-};
+use crate::{Attrs, AttrsList, BufferLine, LayoutGlyph, LayoutLine, ShapeLine, Wrap};
 
 /// Current cursor location
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
@@ -317,7 +314,7 @@ impl Buffer {
     /// # Panics
     ///
     /// Will panic if `metrics.line_height` is zero.
-    pub fn new(font_system: &mut FontSystem, metrics: Metrics) -> Self {
+    pub fn new(metrics: Metrics) -> Self {
         assert_ne!(metrics.line_height, 0.0, "line height cannot be 0");
 
         let mut buffer = Self {
@@ -329,29 +326,18 @@ impl Buffer {
             redraw: false,
             wrap: Wrap::Word,
         };
-        buffer.set_text(font_system, "", Attrs::new());
+        buffer.set_text("", Attrs::new());
         buffer
     }
 
-    /// Mutably borrows the buffer together with an [`FontSystem`] for more convenient methods
-    pub fn borrow_with<'a>(
-        &'a mut self,
-        font_system: &'a mut FontSystem,
-    ) -> BorrowedWithFontSystem<'a, Buffer> {
-        BorrowedWithFontSystem {
-            inner: self,
-            font_system,
-        }
-    }
-
-    fn relayout(&mut self, font_system: &mut FontSystem) {
+    fn relayout(&mut self) {
         #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
         let instant = std::time::Instant::now();
 
         for line in &mut self.lines {
             if line.shape_opt().is_some() {
                 line.reset_layout();
-                line.layout(font_system, self.width, self.wrap);
+                line.layout(self.width, self.wrap);
             }
         }
 
@@ -362,7 +348,7 @@ impl Buffer {
     }
 
     /// Pre-shape lines in the buffer, up to `lines`, return actual number of layout lines
-    pub fn shape_until(&mut self, font_system: &mut FontSystem, lines: i32) -> i32 {
+    pub fn shape_until(&mut self, lines: i32) -> i32 {
         #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
         let instant = std::time::Instant::now();
 
@@ -376,7 +362,7 @@ impl Buffer {
             if line.shape_opt().is_none() {
                 reshaped += 1;
             }
-            let layout = line.layout(font_system, self.width, self.wrap);
+            let layout = line.layout(self.width, self.wrap);
             total_layout += layout.len() as i32;
         }
 
@@ -390,7 +376,7 @@ impl Buffer {
     }
 
     /// Shape lines until cursor, also scrolling to include cursor in view
-    pub fn shape_until_cursor(&mut self, font_system: &mut FontSystem, cursor: Cursor) {
+    pub fn shape_until_cursor(&mut self, cursor: Cursor) {
         #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
         let instant = std::time::Instant::now();
 
@@ -404,7 +390,7 @@ impl Buffer {
             if line.shape_opt().is_none() {
                 reshaped += 1;
             }
-            let layout = line.layout(font_system, self.width, self.wrap);
+            let layout = line.layout(self.width, self.wrap);
             if line_i == cursor.line {
                 let layout_cursor = self.layout_cursor(&cursor);
                 layout_i += layout_cursor.layout as i32;
@@ -427,15 +413,15 @@ impl Buffer {
             self.scroll = layout_i - (lines - 1);
         }
 
-        self.shape_until_scroll(font_system);
+        self.shape_until_scroll();
     }
 
     /// Shape lines until scroll
-    pub fn shape_until_scroll(&mut self, font_system: &mut FontSystem) {
+    pub fn shape_until_scroll(&mut self) {
         let lines = self.visible_lines();
 
         let scroll_end = self.scroll + lines;
-        let total_layout = self.shape_until(font_system, scroll_end);
+        let total_layout = self.shape_until(scroll_end);
 
         self.scroll = cmp::max(0, cmp::min(total_layout - (lines - 1), self.scroll));
     }
@@ -471,23 +457,15 @@ impl Buffer {
     }
 
     /// Shape the provided line index and return the result
-    pub fn line_shape(
-        &mut self,
-        font_system: &mut FontSystem,
-        line_i: usize,
-    ) -> Option<&ShapeLine> {
+    pub fn line_shape(&mut self, line_i: usize) -> Option<&ShapeLine> {
         let line = self.lines.get_mut(line_i)?;
-        Some(line.shape(font_system))
+        Some(line.shape())
     }
 
     /// Lay out the provided line index and return the result
-    pub fn line_layout(
-        &mut self,
-        font_system: &mut FontSystem,
-        line_i: usize,
-    ) -> Option<&[LayoutLine]> {
+    pub fn line_layout(&mut self, line_i: usize) -> Option<&[LayoutLine]> {
         let line = self.lines.get_mut(line_i)?;
-        Some(line.layout(font_system, self.width, self.wrap))
+        Some(line.layout(self.width, self.wrap))
     }
 
     /// Get the current [`Metrics`]
@@ -500,12 +478,12 @@ impl Buffer {
     /// # Panics
     ///
     /// Will panic if `metrics.font_size` is zero.
-    pub fn set_metrics(&mut self, font_system: &mut FontSystem, metrics: Metrics) {
+    pub fn set_metrics(&mut self, metrics: Metrics) {
         if metrics != self.metrics {
             assert_ne!(metrics.font_size, 0.0, "font size cannot be 0");
             self.metrics = metrics;
-            self.relayout(font_system);
-            self.shape_until_scroll(font_system);
+            self.relayout();
+            self.shape_until_scroll();
         }
     }
 
@@ -515,11 +493,11 @@ impl Buffer {
     }
 
     /// Set the current [`Wrap`]
-    pub fn set_wrap(&mut self, font_system: &mut FontSystem, wrap: Wrap) {
+    pub fn set_wrap(&mut self, wrap: Wrap) {
         if wrap != self.wrap {
             self.wrap = wrap;
-            self.relayout(font_system);
-            self.shape_until_scroll(font_system);
+            self.relayout();
+            self.shape_until_scroll();
         }
     }
 
@@ -529,15 +507,15 @@ impl Buffer {
     }
 
     /// Set the current buffer dimensions
-    pub fn set_size(&mut self, font_system: &mut FontSystem, width: f32, height: f32) {
+    pub fn set_size(&mut self, width: f32, height: f32) {
         let clamped_width = width.max(0.0);
         let clamped_height = height.max(0.0);
 
         if clamped_width != self.width || clamped_height != self.height {
             self.width = clamped_width;
             self.height = clamped_height;
-            self.relayout(font_system);
-            self.shape_until_scroll(font_system);
+            self.relayout();
+            self.shape_until_scroll();
         }
     }
 
@@ -560,7 +538,7 @@ impl Buffer {
     }
 
     /// Set text of buffer, using provided attributes for each line by default
-    pub fn set_text(&mut self, font_system: &mut FontSystem, text: &str, attrs: Attrs) {
+    pub fn set_text(&mut self, text: &str, attrs: Attrs) {
         self.lines.clear();
         for line in text.lines() {
             self.lines
@@ -574,7 +552,7 @@ impl Buffer {
 
         self.scroll = 0;
 
-        self.shape_until_scroll(font_system);
+        self.shape_until_scroll();
     }
 
     /// True if a redraw is needed
@@ -695,13 +673,8 @@ impl Buffer {
 
     /// Draw the buffer
     #[cfg(feature = "swash")]
-    pub fn draw<F>(
-        &self,
-        font_system: &mut FontSystem,
-        cache: &mut crate::SwashCache,
-        color: Color,
-        mut f: F,
-    ) where
+    pub fn draw<F>(&self, cache: &mut crate::SwashCache, color: Color, mut f: F)
+    where
         F: FnMut(i32, i32, u32, u32, Color),
     {
         for run in self.layout_runs() {
@@ -713,70 +686,10 @@ impl Buffer {
                     None => color,
                 };
 
-                cache.with_pixels(font_system, cache_key, glyph_color, |x, y, color| {
+                cache.with_pixels(cache_key, glyph_color, |x, y, color| {
                     f(x_int + x, run.line_y as i32 + y_int + y, 1, 1, color);
                 });
             }
         }
-    }
-}
-
-impl<'a> BorrowedWithFontSystem<'a, Buffer> {
-    /// Pre-shape lines in the buffer, up to `lines`, return actual number of layout lines
-    pub fn shape_until(&mut self, lines: i32) -> i32 {
-        self.inner.shape_until(self.font_system, lines)
-    }
-
-    /// Shape lines until cursor, also scrolling to include cursor in view
-    pub fn shape_until_cursor(&mut self, cursor: Cursor) {
-        self.inner.shape_until_cursor(self.font_system, cursor);
-    }
-
-    /// Shape lines until scroll
-    pub fn shape_until_scroll(&mut self) {
-        self.inner.shape_until_scroll(self.font_system);
-    }
-
-    /// Shape the provided line index and return the result
-    pub fn line_shape(&mut self, line_i: usize) -> Option<&ShapeLine> {
-        self.inner.line_shape(self.font_system, line_i)
-    }
-
-    /// Lay out the provided line index and return the result
-    pub fn line_layout(&mut self, line_i: usize) -> Option<&[LayoutLine]> {
-        self.inner.line_layout(self.font_system, line_i)
-    }
-
-    /// Set the current [`Metrics`]
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `metrics.font_size` is zero.
-    pub fn set_metrics(&mut self, metrics: Metrics) {
-        self.inner.set_metrics(self.font_system, metrics);
-    }
-
-    /// Set the current [`Wrap`]
-    pub fn set_wrap(&mut self, wrap: Wrap) {
-        self.inner.set_wrap(self.font_system, wrap);
-    }
-
-    /// Set the current buffer dimensions
-    pub fn set_size(&mut self, width: f32, height: f32) {
-        self.inner.set_size(self.font_system, width, height);
-    }
-
-    /// Set text of buffer, using provided attributes for each line by default
-    pub fn set_text(&mut self, text: &str, attrs: Attrs) {
-        self.inner.set_text(self.font_system, text, attrs);
-    }
-
-    /// Draw the buffer
-    #[cfg(feature = "swash")]
-    pub fn draw<F>(&mut self, cache: &mut crate::SwashCache, color: Color, f: F)
-    where
-        F: FnMut(i32, i32, u32, u32, Color),
-    {
-        self.inner.draw(self.font_system, cache, color, f);
     }
 }

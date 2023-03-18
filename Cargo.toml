@@ -21,6 +21,8 @@ unicode-linebreak = "0.1.4"
 unicode-script = "0.5.5"
 unicode-segmentation = "1.10.0"
 rangemap = "1.2.0"
+parking_lot = "0.12.1"
+once_cell = "1.17.1"
 
 [dependencies.unicode-bidi]
 version = "0.3.8"

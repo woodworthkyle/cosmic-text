@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use cosmic_text::{
-    Action, Attrs, AttrsList, Buffer, BufferLine, Color, Edit, Editor, Family, FontSystem, Metrics,
-    Style, SwashCache, Weight,
+    Action, Attrs, AttrsList, Buffer, BufferLine, Color, Edit, Editor, Family, Metrics, Style,
+    SwashCache, Weight, FONT_SYSTEM,
 };
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
 use std::{
@@ -12,8 +12,6 @@ use std::{
 
 fn main() {
     env_logger::init();
-
-    let mut font_system = FontSystem::new();
 
     let display_scale = match orbclient::get_display_size() {
         Ok((w, h)) => {
@@ -31,17 +29,12 @@ fn main() {
         -1,
         1024 * display_scale as u32,
         768 * display_scale as u32,
-        &format!("COSMIC TEXT - {}", font_system.locale()),
+        &format!("COSMIC TEXT - {}", FONT_SYSTEM.locale()),
         &[WindowFlag::Resizable],
     )
     .unwrap();
 
-    let mut editor = Editor::new(Buffer::new(
-        &mut font_system,
-        Metrics::new(32.0, 44.0).scale(display_scale),
-    ));
-
-    let mut editor = editor.borrow_with(&mut font_system);
+    let mut editor = Editor::new(Buffer::new(Metrics::new(32.0, 44.0).scale(display_scale)));
 
     editor
         .buffer_mut()

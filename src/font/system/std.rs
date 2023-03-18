@@ -2,14 +2,20 @@
 
 use std::{collections::HashMap, sync::Arc};
 
+use fontdb::Family;
+use once_cell::sync::Lazy;
+use parking_lot::RwLock;
+
 use crate::{Attrs, Font, FontAttrs};
+
+pub static FONT_SYSTEM: Lazy<FontSystem> = Lazy::new(FontSystem::new);
 
 /// Access system fonts
 pub struct FontSystem {
     locale: String,
-    db: fontdb::Database,
-    font_cache: HashMap<fontdb::ID, Option<Arc<Font>>>,
-    font_matches_cache: HashMap<FontAttrs, Arc<Vec<fontdb::ID>>>,
+    db: RwLock<fontdb::Database>,
+    font_cache: RwLock<HashMap<fontdb::ID, Option<Arc<Font>>>>,
+    font_matches_cache: RwLock<HashMap<FontAttrs, Arc<Vec<fontdb::ID>>>>,
 }
 
 impl FontSystem {
@@ -65,9 +71,9 @@ impl FontSystem {
     pub fn new_with_locale_and_db(locale: String, db: fontdb::Database) -> Self {
         Self {
             locale,
-            db,
-            font_cache: HashMap::new(),
-            font_matches_cache: HashMap::new(),
+            db: RwLock::new(db),
+            font_cache: RwLock::new(HashMap::new()),
+            font_matches_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -75,33 +81,45 @@ impl FontSystem {
         &self.locale
     }
 
-    pub fn db(&self) -> &fontdb::Database {
-        &self.db
+    pub fn get_font(&self, id: fontdb::ID) -> Option<Arc<Font>> {
+        if let Some(f) = self.font_cache.read().get(&id) {
+            return f.clone();
+        }
+        let mut font_cache = self.font_cache.write();
+        font_cache
+            .entry(id)
+            .or_insert_with(|| {
+                unsafe {
+                    self.db.write().make_shared_face_data(id);
+                }
+                let db = self.db.read();
+                let face = db.face(id)?;
+                match Font::new(face) {
+                    Some(font) => Some(Arc::new(font)),
+                    None => {
+                        log::warn!("failed to load font '{}'", face.post_script_name);
+                        None
+                    }
+                }
+            })
+            .clone()
     }
 
-    pub fn db_mut(&mut self) -> &mut fontdb::Database {
-        self.font_matches_cache.clear();
-        &mut self.db
-    }
-
-    pub fn into_locale_and_db(self) -> (String, fontdb::Database) {
-        (self.locale, self.db)
-    }
-
-    pub fn get_font(&mut self, id: fontdb::ID) -> Option<Arc<Font>> {
-        get_font(&mut self.font_cache, &mut self.db, id)
-    }
-
-    pub fn get_font_matches(&mut self, attrs: Attrs) -> Arc<Vec<fontdb::ID>> {
+    pub fn get_font_matches(&self, attrs: Attrs) -> Arc<Vec<fontdb::ID>> {
+        let font_attrs: FontAttrs = attrs.into();
+        if let Some(f) = self.font_matches_cache.read().get(&font_attrs) {
+            return f.clone();
+        }
         self.font_matches_cache
-            //TODO: do not create AttrsOwned unless entry does not already exist
-            .entry(attrs.into())
+            .write()
+            .entry(font_attrs)
             .or_insert_with(|| {
                 #[cfg(not(target_arch = "wasm32"))]
                 let now = std::time::Instant::now();
 
                 let ids = self
                     .db
+                    .read()
                     .faces()
                     .filter(|face| attrs.matches(face))
                     .map(|face| face.id)
@@ -117,27 +135,34 @@ impl FontSystem {
             })
             .clone()
     }
-}
 
-fn get_font(
-    font_cache: &mut HashMap<fontdb::ID, Option<Arc<Font>>>,
-    db: &mut fontdb::Database,
-    id: fontdb::ID,
-) -> Option<Arc<Font>> {
-    font_cache
-        .entry(id)
-        .or_insert_with(|| {
-            unsafe {
-                db.make_shared_face_data(id);
+    pub fn face_contains_family(&self, id: fontdb::ID, family: &Family) -> bool {
+        let db = self.db.read();
+        if let Some(face) = db.face(id) {
+            let family_name = db.family_name(family);
+            face.families.iter().any(|(name, _)| name == family_name)
+        } else {
+            false
+        }
+    }
+
+    pub fn face_contains_family_name(&self, id: fontdb::ID, family_name: &str) -> bool {
+        if let Some(face) = self.db.read().face(id) {
+            face.families.iter().any(|(name, _)| name == family_name)
+        } else {
+            false
+        }
+    }
+
+    pub fn face_name(&self, id: fontdb::ID) -> String {
+        if let Some(face) = self.db.read().face(id) {
+            if let Some((name, _)) = face.families.first() {
+                name.clone()
+            } else {
+                face.post_script_name.clone()
             }
-            let face = db.face(id)?;
-            match Font::new(face) {
-                Some(font) => Some(Arc::new(font)),
-                None => {
-                    log::warn!("failed to load font '{}'", face.post_script_name);
-                    None
-                }
-            }
-        })
-        .clone()
+        } else {
+            "invalid font id".to_string()
+        }
+    }
 }
