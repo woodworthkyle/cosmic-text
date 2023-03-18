@@ -58,6 +58,8 @@ pub struct LayoutLine {
     pub w: f32,
     /// Glyphs in line
     pub glyphs: Vec<LayoutGlyph>,
+    /// height of this line
+    pub line_height: f32,
 }
 
 /// Wrapping mode

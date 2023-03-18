@@ -235,7 +235,7 @@ impl<'a, 'b> Iterator for LayoutRunIter<'a, 'b> {
                     continue;
                 }
 
-                self.line_y += self.buffer.metrics.line_height;
+                self.line_y += layout_line.line_height;
                 if self.line_y - self.buffer.metrics.y_offset() > self.buffer.height {
                     return None;
                 }

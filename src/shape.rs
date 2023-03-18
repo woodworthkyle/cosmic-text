@@ -48,10 +48,12 @@ fn shape_fallback(
         let y_advance = (pos.y_advance * attrs.font_size as i32) as f32 / font_scale;
         let x_offset = (pos.x_offset * attrs.font_size as i32) as f32 / font_scale;
         let y_offset = (pos.y_offset * attrs.font_size as i32) as f32 / font_scale;
-        println!(
-            "font size is {} pos {pos:?} x_advance {x_advance}",
-            attrs.font_size
-        );
+
+        let line_height = match attrs.line_height {
+            h if h == 0.0 => attrs.font_size,
+            h if h > 8.0 => h,
+            h => h * attrs.font_size,
+        };
 
         //println!("  {:?} {:?}", info, pos);
         if info.glyph_id == 0 {
@@ -66,6 +68,7 @@ fn shape_fallback(
             x_offset,
             y_offset,
             font_size: attrs.font_size,
+            line_height,
             font_id: font.info.id,
             glyph_id: info.glyph_id.try_into().expect("failed to cast glyph ID"),
             //TODO: color should not be related to shaping
@@ -232,7 +235,8 @@ pub struct ShapeGlyph {
     pub y_advance: f32,
     pub x_offset: f32,
     pub y_offset: f32,
-    pub font_size: u32,
+    pub font_size: f32,
+    pub line_height: f32,
     pub font_id: fontdb::ID,
     pub glyph_id: u16,
     pub color_opt: Option<Color>,
@@ -241,17 +245,13 @@ pub struct ShapeGlyph {
 
 impl ShapeGlyph {
     fn layout(&self, x: f32, y: f32, w: f32, level: unicode_bidi::Level) -> LayoutGlyph {
-        println!(
-            "layout glyph x {x} y {y} w {w} x_offset {} y_offset {} font_size {}",
-            self.x_offset, self.y_offset, self.font_size
-        );
         let x_offset = self.x_offset;
         let y_offset = self.y_offset;
 
         let (cache_key, x_int, y_int) = CacheKey::new(
             self.font_id,
             self.glyph_id,
-            self.font_size,
+            self.font_size.round() as u32,
             (x + x_offset, y - y_offset),
         );
         LayoutGlyph {
@@ -640,6 +640,7 @@ impl ShapeLine {
         let end_x = if self.rtl { 0.0 } else { line_width };
         let mut x = start_x;
         let mut y;
+        let mut line_height = 0.0f32;
 
         // This would keep the maximum number of spans that would fit on a visual line
         // If one span is too large, this variable will hold the range of words inside that span
@@ -939,6 +940,7 @@ impl ShapeLine {
                                     glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                 }
                                 y += y_advance;
+                                line_height = line_height.max(glyph.line_height);
                             }
                         } else {
                             for i in *starting_word..*ending_word + 1 {
@@ -968,6 +970,7 @@ impl ShapeLine {
                                             glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                         }
                                         y += y_advance;
+                                        line_height = line_height.max(glyph.line_height);
                                     }
                                 }
                             }
@@ -1008,6 +1011,7 @@ impl ShapeLine {
                                 }
                                 x += x_advance;
                                 y += y_advance;
+                                line_height = line_height.max(glyph.line_height);
                             }
                         } else {
                             for i in *starting_word..*ending_word + 1 {
@@ -1037,6 +1041,7 @@ impl ShapeLine {
                                         }
                                         x += x_advance;
                                         y += y_advance;
+                                        line_height = line_height.max(glyph.line_height);
                                     }
                                 }
                             }
@@ -1049,6 +1054,7 @@ impl ShapeLine {
             layout_lines.push(LayoutLine {
                 w: if self.rtl { start_x - x } else { x },
                 glyphs: glyphs_swap,
+                line_height,
             });
             push_line = false;
         }
@@ -1057,6 +1063,7 @@ impl ShapeLine {
             layout_lines.push(LayoutLine {
                 w: 0.0,
                 glyphs: Default::default(),
+                line_height,
             });
         }
 

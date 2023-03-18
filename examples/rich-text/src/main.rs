@@ -38,7 +38,7 @@ fn main() {
 
     let mut editor = Editor::new(Buffer::new(
         &font_system,
-        Metrics::new(20.0, 30.0).scale(display_scale),
+        Metrics::new(14.0, 50.0).scale(display_scale),
     ));
 
     editor
@@ -54,7 +54,7 @@ fn main() {
 
     let lines: &[&[(&str, Attrs)]] = &[
         &[
-            ("B", attrs.weight(Weight::BOLD)),
+            ("\tB", attrs.weight(Weight::BOLD).font_size(30.0)),
             ("old ", attrs),
             ("I", attrs.style(Style::Italic)),
             ("talic ", attrs),
@@ -76,15 +76,21 @@ fn main() {
         ],
         &[
             ("Serif Normal ", serif_attrs),
-            ("Serif Bold ", serif_attrs.weight(Weight::BOLD)),
+            (
+                "Serif Bold ",
+                serif_attrs.weight(Weight::BOLD).font_size(50.0),
+            ),
             ("Serif Italic ", serif_attrs.style(Style::Italic)),
             (
                 "Serif Bold Italic",
-                serif_attrs.weight(Weight::BOLD).style(Style::Italic),
+                serif_attrs
+                    .weight(Weight::BOLD)
+                    .style(Style::Italic)
+                    .font_size(8.0),
             ),
         ],
         &[
-            ("Mono Normal ", mono_attrs),
+            ("Mono Normal g", mono_attrs),
             ("Mono Bold ", mono_attrs.weight(Weight::BOLD)),
             ("Mono Italic ", mono_attrs.style(Style::Italic)),
             (

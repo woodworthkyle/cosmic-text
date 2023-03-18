@@ -110,7 +110,7 @@ impl<'a> From<Attrs<'a>> for FontAttrs {
 }
 
 /// Text attributes
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+#[derive(Clone, Copy, Debug)]
 pub struct Attrs<'a> {
     //TODO: should this be an option?
     pub color_opt: Option<Color>,
@@ -119,9 +119,26 @@ pub struct Attrs<'a> {
     pub stretch: Stretch,
     pub style: Style,
     pub weight: Weight,
-    pub font_size: u32,
+    pub font_size: f32,
+    pub line_height: f32,
     pub metadata: usize,
 }
+
+impl<'a> PartialEq for Attrs<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.color_opt == other.color_opt
+            && self.family == other.family
+            && self.monospaced == other.monospaced
+            && self.stretch == other.stretch
+            && self.style == other.style
+            && self.weight == other.weight
+            && self.metadata == other.metadata
+            && nearly_eq(self.font_size, other.font_size)
+            && nearly_eq(self.line_height, other.line_height)
+    }
+}
+
+impl<'a> Eq for Attrs<'a> {}
 
 impl<'a> Attrs<'a> {
     /// Create a new set of attributes with sane defaults
@@ -135,7 +152,8 @@ impl<'a> Attrs<'a> {
             stretch: Stretch::Normal,
             style: Style::Normal,
             weight: Weight::NORMAL,
-            font_size: 14,
+            font_size: 14.0,
+            line_height: 1.0,
             metadata: 0,
         }
     }
@@ -177,7 +195,7 @@ impl<'a> Attrs<'a> {
     }
 
     /// Set font size
-    pub fn font_size(mut self, font_size: u32) -> Self {
+    pub fn font_size(mut self, font_size: f32) -> Self {
         self.font_size = font_size;
         self
     }
@@ -209,7 +227,7 @@ impl<'a> Attrs<'a> {
 }
 
 /// An owned version of [`Attrs`]
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug)]
 pub struct AttrsOwned {
     //TODO: should this be an option?
     pub color_opt: Option<Color>,
@@ -219,8 +237,25 @@ pub struct AttrsOwned {
     pub style: Style,
     pub weight: Weight,
     pub metadata: usize,
-    pub font_size: u32,
+    pub font_size: f32,
+    pub line_height: f32,
 }
+
+impl PartialEq for AttrsOwned {
+    fn eq(&self, other: &Self) -> bool {
+        self.color_opt == other.color_opt
+            && self.family_owned == other.family_owned
+            && self.monospaced == other.monospaced
+            && self.stretch == other.stretch
+            && self.style == other.style
+            && self.weight == other.weight
+            && self.metadata == other.metadata
+            && nearly_eq(self.font_size, other.font_size)
+            && nearly_eq(self.line_height, other.line_height)
+    }
+}
+
+impl Eq for AttrsOwned {}
 
 impl AttrsOwned {
     pub fn new(attrs: Attrs) -> Self {
@@ -233,6 +268,7 @@ impl AttrsOwned {
             weight: attrs.weight,
             metadata: attrs.metadata,
             font_size: attrs.font_size,
+            line_height: 1.0,
         }
     }
 
@@ -246,6 +282,7 @@ impl AttrsOwned {
             weight: self.weight,
             metadata: self.metadata,
             font_size: self.font_size,
+            line_height: self.line_height,
         }
     }
 }
@@ -336,4 +373,8 @@ impl AttrsList {
         }
         new
     }
+}
+
+pub fn nearly_eq(x: f32, y: f32) -> bool {
+    (x - y).abs() < f32::EPSILON
 }
