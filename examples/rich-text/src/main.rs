@@ -38,7 +38,7 @@ fn main() {
 
     let mut editor = Editor::new(Buffer::new(
         &font_system,
-        Metrics::new(32.0, 44.0).scale(display_scale),
+        Metrics::new(20.0, 30.0).scale(display_scale),
     ));
 
     editor

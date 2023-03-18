@@ -99,12 +99,7 @@ where
         let shape = self.line.shape_opt().as_ref().unwrap();
 
         //TODO: can we cache this?
-        let layout_lines = shape.layout(
-            self.metrics.font_size,
-            limits.max().width,
-            self.line.wrap(),
-            self.line.align(),
-        );
+        let layout_lines = shape.layout(limits.max().width, self.line.wrap(), self.line.align());
 
         let mut width = 0.0f32;
         let mut height = 0.0f32;
@@ -164,12 +159,7 @@ where
         let shape = self.line.shape_opt().as_ref().unwrap();
 
         //TODO: can we cache this?
-        let layout_lines = shape.layout(
-            self.metrics.font_size,
-            layout_w,
-            self.line.wrap(),
-            self.line.align(),
-        );
+        let layout_lines = shape.layout(layout_w, self.line.wrap(), self.line.align());
 
         let mut cache = state.cache.lock().unwrap();
 

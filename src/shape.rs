@@ -42,19 +42,22 @@ fn shape_fallback(
     let mut missing = Vec::new();
     let mut glyphs = Vec::with_capacity(glyph_infos.len());
     for (info, pos) in glyph_infos.iter().zip(glyph_positions.iter()) {
-        let x_advance = pos.x_advance as f32 / font_scale;
-        let y_advance = pos.y_advance as f32 / font_scale;
-        let x_offset = pos.x_offset as f32 / font_scale;
-        let y_offset = pos.y_offset as f32 / font_scale;
-
         let start_glyph = start_run + info.cluster as usize;
+        let attrs = attrs_list.get_span(start_glyph);
+        let x_advance = (pos.x_advance * attrs.font_size as i32) as f32 / font_scale;
+        let y_advance = (pos.y_advance * attrs.font_size as i32) as f32 / font_scale;
+        let x_offset = (pos.x_offset * attrs.font_size as i32) as f32 / font_scale;
+        let y_offset = (pos.y_offset * attrs.font_size as i32) as f32 / font_scale;
+        println!(
+            "font size is {} pos {pos:?} x_advance {x_advance}",
+            attrs.font_size
+        );
 
         //println!("  {:?} {:?}", info, pos);
         if info.glyph_id == 0 {
             missing.push(start_glyph);
         }
 
-        let attrs = attrs_list.get_span(start_glyph);
         glyphs.push(ShapeGlyph {
             start: start_glyph,
             end: end_run, // Set later
@@ -62,6 +65,7 @@ fn shape_fallback(
             y_advance,
             x_offset,
             y_offset,
+            font_size: attrs.font_size,
             font_id: font.info.id,
             glyph_id: info.glyph_id.try_into().expect("failed to cast glyph ID"),
             //TODO: color should not be related to shaping
@@ -228,6 +232,7 @@ pub struct ShapeGlyph {
     pub y_advance: f32,
     pub x_offset: f32,
     pub y_offset: f32,
+    pub font_size: u32,
     pub font_id: fontdb::ID,
     pub glyph_id: u16,
     pub color_opt: Option<Color>,
@@ -235,21 +240,18 @@ pub struct ShapeGlyph {
 }
 
 impl ShapeGlyph {
-    fn layout(
-        &self,
-        font_size: f32,
-        x: f32,
-        y: f32,
-        w: f32,
-        level: unicode_bidi::Level,
-    ) -> LayoutGlyph {
-        let x_offset = font_size * self.x_offset;
-        let y_offset = font_size * self.y_offset;
+    fn layout(&self, x: f32, y: f32, w: f32, level: unicode_bidi::Level) -> LayoutGlyph {
+        println!(
+            "layout glyph x {x} y {y} w {w} x_offset {} y_offset {} font_size {}",
+            self.x_offset, self.y_offset, self.font_size
+        );
+        let x_offset = self.x_offset;
+        let y_offset = self.y_offset;
 
         let (cache_key, x_int, y_int) = CacheKey::new(
             self.font_id,
             self.glyph_id,
-            font_size,
+            self.font_size,
             (x + x_offset, y - y_offset),
         );
         LayoutGlyph {
@@ -609,13 +611,7 @@ impl ShapeLine {
         runs
     }
 
-    pub fn layout(
-        &self,
-        font_size: f32,
-        line_width: f32,
-        wrap: Wrap,
-        align: Option<Align>,
-    ) -> Vec<LayoutLine> {
+    pub fn layout(&self, line_width: f32, wrap: Wrap, align: Option<Align>) -> Vec<LayoutLine> {
         let mut layout_lines = Vec::with_capacity(1);
 
         let align = align.unwrap_or({
@@ -669,7 +665,7 @@ impl ShapeLine {
                     // incongruent directions
                     let mut fitting_start = (span.words.len(), 0);
                     for (i, word) in span.words.iter().enumerate().rev() {
-                        let word_size = font_size * word.x_advance;
+                        let word_size = word.x_advance;
                         if fit_x - word_size >= 0. {
                             // fits
                             fit_x -= word_size;
@@ -680,7 +676,7 @@ impl ShapeLine {
                             continue;
                         } else if wrap == Wrap::Glyph {
                             for (glyph_i, glyph) in word.glyphs.iter().enumerate().rev() {
-                                let glyph_size = font_size * glyph.x_advance;
+                                let glyph_size = glyph.x_advance;
                                 if fit_x - glyph_size >= 0. {
                                     fit_x -= glyph_size;
                                     word_range_width += glyph_size;
@@ -709,7 +705,7 @@ impl ShapeLine {
                                 // previous word if it's a whitespace
                                 if previous_word.blank {
                                     number_of_blanks -= 1;
-                                    prev_word_width = Some(previous_word.x_advance * font_size);
+                                    prev_word_width = Some(previous_word.x_advance);
                                 }
                             }
                             if let Some(width) = prev_word_width {
@@ -744,7 +740,7 @@ impl ShapeLine {
                     // congruent direction
                     let mut fitting_start = (0, 0);
                     for (i, word) in span.words.iter().enumerate() {
-                        let word_size = font_size * word.x_advance;
+                        let word_size = word.x_advance;
                         if fit_x - word_size >= 0. {
                             // fits
                             fit_x -= word_size;
@@ -755,7 +751,7 @@ impl ShapeLine {
                             continue;
                         } else if wrap == Wrap::Glyph {
                             for (glyph_i, glyph) in word.glyphs.iter().enumerate() {
-                                let glyph_size = font_size * glyph.x_advance;
+                                let glyph_size = glyph.x_advance;
                                 if fit_x - glyph_size >= 0. {
                                     fit_x -= glyph_size;
                                     word_range_width += glyph_size;
@@ -784,7 +780,7 @@ impl ShapeLine {
                                 // previous word if it's a whitespace
                                 if previous_word.blank {
                                     number_of_blanks -= 1;
-                                    prev_word_width = Some(previous_word.x_advance * font_size);
+                                    prev_word_width = Some(previous_word.x_advance);
                                 }
                             }
                             if let Some(width) = prev_word_width {
@@ -928,21 +924,19 @@ impl ShapeLine {
                                 [*starting_glyph..*ending_glyph]
                                 .iter()
                             {
-                                let x_advance = font_size * glyph.x_advance;
-                                let y_advance = font_size * glyph.y_advance;
+                                let x_advance = glyph.x_advance;
+                                let y_advance = glyph.y_advance;
                                 x -= x_advance;
                                 if word_blank && align == Align::Justified {
                                     x -= alignment_correction;
                                     glyphs.push(glyph.layout(
-                                        font_size,
                                         x,
                                         y,
                                         x_advance + alignment_correction,
                                         span.level,
                                     ));
                                 } else {
-                                    glyphs
-                                        .push(glyph.layout(font_size, x, y, x_advance, span.level));
+                                    glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                 }
                                 y += y_advance;
                             }
@@ -959,23 +953,19 @@ impl ShapeLine {
 
                                     let word_blank = word.blank;
                                     for glyph in &word.glyphs[g1..g2] {
-                                        let x_advance = font_size * glyph.x_advance;
-                                        let y_advance = font_size * glyph.y_advance;
+                                        let x_advance = glyph.x_advance;
+                                        let y_advance = glyph.y_advance;
                                         x -= x_advance;
                                         if word_blank && align == Align::Justified {
                                             x -= alignment_correction;
                                             glyphs.push(glyph.layout(
-                                                font_size,
                                                 x,
                                                 y,
                                                 x_advance + alignment_correction,
                                                 span.level,
                                             ));
                                         } else {
-                                            glyphs
-                                                .push(glyph.layout(
-                                                    font_size, x, y, x_advance, span.level,
-                                                ));
+                                            glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                         }
                                         y += y_advance;
                                     }
@@ -1003,11 +993,10 @@ impl ShapeLine {
                                 [*starting_glyph..*ending_glyph]
                                 .iter()
                             {
-                                let x_advance = font_size * glyph.x_advance;
-                                let y_advance = font_size * glyph.y_advance;
+                                let x_advance = glyph.x_advance;
+                                let y_advance = glyph.y_advance;
                                 if word_blank && align == Align::Justified {
                                     glyphs.push(glyph.layout(
-                                        font_size,
                                         x,
                                         y,
                                         x_advance + alignment_correction,
@@ -1015,8 +1004,7 @@ impl ShapeLine {
                                     ));
                                     x += alignment_correction;
                                 } else {
-                                    glyphs
-                                        .push(glyph.layout(font_size, x, y, x_advance, span.level));
+                                    glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                 }
                                 x += x_advance;
                                 y += y_advance;
@@ -1034,11 +1022,10 @@ impl ShapeLine {
 
                                     let word_blank = word.blank;
                                     for glyph in &word.glyphs[g1..g2] {
-                                        let x_advance = font_size * glyph.x_advance;
-                                        let y_advance = font_size * glyph.y_advance;
+                                        let x_advance = glyph.x_advance;
+                                        let y_advance = glyph.y_advance;
                                         if word_blank && align == Align::Justified {
                                             glyphs.push(glyph.layout(
-                                                font_size,
                                                 x,
                                                 y,
                                                 x_advance + alignment_correction,
@@ -1046,10 +1033,7 @@ impl ShapeLine {
                                             ));
                                             x += alignment_correction;
                                         } else {
-                                            glyphs
-                                                .push(glyph.layout(
-                                                    font_size, x, y, x_advance, span.level,
-                                                ));
+                                            glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                         }
                                         x += x_advance;
                                         y += y_advance;

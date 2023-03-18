@@ -181,18 +181,12 @@ impl BufferLine {
     }
 
     /// Layout line, will cache results
-    pub fn layout(
-        &mut self,
-        font_system: &FontSystem,
-        font_size: f32,
-        width: f32,
-        wrap: Wrap,
-    ) -> &[LayoutLine] {
+    pub fn layout(&mut self, font_system: &FontSystem, width: f32, wrap: Wrap) -> &[LayoutLine] {
         if self.layout_opt.is_none() {
             self.wrap = wrap;
             let align = self.align;
             let shape = self.shape(font_system);
-            let layout = shape.layout(font_size, width, wrap, align);
+            let layout = shape.layout(width, wrap, align);
             self.layout_opt = Some(layout);
         }
         self.layout_opt.as_ref().expect("layout not found")

@@ -339,12 +339,7 @@ impl<'a> Buffer<'a> {
         for line in &mut self.lines {
             if line.shape_opt().is_some() {
                 line.reset_layout();
-                line.layout(
-                    self.font_system,
-                    self.metrics.font_size,
-                    self.width,
-                    self.wrap,
-                );
+                line.layout(self.font_system, self.width, self.wrap);
             }
         }
 
@@ -369,12 +364,7 @@ impl<'a> Buffer<'a> {
             if line.shape_opt().is_none() {
                 reshaped += 1;
             }
-            let layout = line.layout(
-                self.font_system,
-                self.metrics.font_size,
-                self.width,
-                self.wrap,
-            );
+            let layout = line.layout(self.font_system, self.width, self.wrap);
             total_layout += layout.len() as i32;
         }
 
@@ -402,12 +392,7 @@ impl<'a> Buffer<'a> {
             if line.shape_opt().is_none() {
                 reshaped += 1;
             }
-            let layout = line.layout(
-                self.font_system,
-                self.metrics.font_size,
-                self.width,
-                self.wrap,
-            );
+            let layout = line.layout(self.font_system, self.width, self.wrap);
             if line_i == cursor.line {
                 let layout_cursor = self.layout_cursor(&cursor);
                 layout_i += layout_cursor.layout as i32;
@@ -487,12 +472,7 @@ impl<'a> Buffer<'a> {
     /// Lay out the provided line index and return the result
     pub fn line_layout(&mut self, line_i: usize) -> Option<&[LayoutLine]> {
         let line = self.lines.get_mut(line_i)?;
-        Some(line.layout(
-            self.font_system,
-            self.metrics.font_size,
-            self.width,
-            self.wrap,
-        ))
+        Some(line.layout(self.font_system, self.width, self.wrap))
     }
 
     /// Get the current [`Metrics`]

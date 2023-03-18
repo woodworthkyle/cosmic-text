@@ -87,8 +87,30 @@ impl FamilyOwned {
     }
 }
 
+/// Font attributes
+#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+pub struct FontAttrs {
+    pub family: FamilyOwned,
+    pub monospaced: bool,
+    pub stretch: Stretch,
+    pub style: Style,
+    pub weight: Weight,
+}
+
+impl<'a> From<Attrs<'a>> for FontAttrs {
+    fn from(value: Attrs) -> Self {
+        FontAttrs {
+            family: FamilyOwned::new(value.family),
+            style: value.style,
+            weight: value.weight,
+            stretch: value.stretch,
+            monospaced: value.monospaced,
+        }
+    }
+}
+
 /// Text attributes
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub struct Attrs<'a> {
     //TODO: should this be an option?
     pub color_opt: Option<Color>,
@@ -97,6 +119,7 @@ pub struct Attrs<'a> {
     pub stretch: Stretch,
     pub style: Style,
     pub weight: Weight,
+    pub font_size: u32,
     pub metadata: usize,
 }
 
@@ -112,6 +135,7 @@ impl<'a> Attrs<'a> {
             stretch: Stretch::Normal,
             style: Style::Normal,
             weight: Weight::NORMAL,
+            font_size: 14,
             metadata: 0,
         }
     }
@@ -152,6 +176,12 @@ impl<'a> Attrs<'a> {
         self
     }
 
+    /// Set font size
+    pub fn font_size(mut self, font_size: u32) -> Self {
+        self.font_size = font_size;
+        self
+    }
+
     /// Set metadata
     pub fn metadata(mut self, metadata: usize) -> Self {
         self.metadata = metadata;
@@ -179,7 +209,7 @@ impl<'a> Attrs<'a> {
 }
 
 /// An owned version of [`Attrs`]
-#[derive(Clone, Debug, Eq, Hash, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct AttrsOwned {
     //TODO: should this be an option?
     pub color_opt: Option<Color>,
@@ -189,6 +219,7 @@ pub struct AttrsOwned {
     pub style: Style,
     pub weight: Weight,
     pub metadata: usize,
+    pub font_size: u32,
 }
 
 impl AttrsOwned {
@@ -201,6 +232,7 @@ impl AttrsOwned {
             style: attrs.style,
             weight: attrs.weight,
             metadata: attrs.metadata,
+            font_size: attrs.font_size,
         }
     }
 
@@ -213,13 +245,14 @@ impl AttrsOwned {
             style: self.style,
             weight: self.weight,
             metadata: self.metadata,
+            font_size: self.font_size,
         }
     }
 }
 
 /// List of text attributes to apply to a line
 //TODO: have this clean up the spans when changes are made
-#[derive(Eq, PartialEq)]
+#[derive(PartialEq)]
 pub struct AttrsList {
     defaults: AttrsOwned,
     spans: RangeMap<usize, AttrsOwned>,
