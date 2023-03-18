@@ -181,7 +181,12 @@ impl BufferLine {
     }
 
     /// Layout line, will cache results
-    pub fn layout(&mut self, font_system: &FontSystem, width: f32, wrap: Wrap) -> &[LayoutLine] {
+    pub fn layout(
+        &mut self,
+        font_system: &mut FontSystem,
+        width: f32,
+        wrap: Wrap,
+    ) -> &[LayoutLine] {
         if self.layout_opt.is_none() {
             self.wrap = wrap;
             let align = self.align;

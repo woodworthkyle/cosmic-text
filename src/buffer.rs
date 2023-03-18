@@ -351,7 +351,7 @@ impl Buffer {
         for line in &mut self.lines {
             if line.shape_opt().is_some() {
                 line.reset_layout();
-                line.layout(font_system, self.metrics.font_size, self.width, self.wrap);
+                line.layout(font_system, self.width, self.wrap);
             }
         }
 
@@ -376,7 +376,7 @@ impl Buffer {
             if line.shape_opt().is_none() {
                 reshaped += 1;
             }
-            let layout = line.layout(font_system, self.metrics.font_size, self.width, self.wrap);
+            let layout = line.layout(font_system, self.width, self.wrap);
             total_layout += layout.len() as i32;
         }
 
@@ -404,7 +404,7 @@ impl Buffer {
             if line.shape_opt().is_none() {
                 reshaped += 1;
             }
-            let layout = line.layout(font_system, self.metrics.font_size, self.width, self.wrap);
+            let layout = line.layout(font_system, self.width, self.wrap);
             if line_i == cursor.line {
                 let layout_cursor = self.layout_cursor(&cursor);
                 layout_i += layout_cursor.layout as i32;
@@ -487,7 +487,7 @@ impl Buffer {
         line_i: usize,
     ) -> Option<&[LayoutLine]> {
         let line = self.lines.get_mut(line_i)?;
-        Some(line.layout(font_system, self.metrics.font_size, self.width, self.wrap))
+        Some(line.layout(font_system, self.width, self.wrap))
     }
 
     /// Get the current [`Metrics`]
