@@ -110,6 +110,8 @@ pub struct LayoutRun<'a> {
     pub line_y: f32,
     /// width of line
     pub line_w: f32,
+    /// height of this line
+    pub line_height: f32,
 }
 
 impl<'a> LayoutRun<'a> {
@@ -192,11 +194,7 @@ impl<'b> LayoutRunIter<'b> {
             .sum();
         let top_cropped_layout_lines =
             total_layout_lines.saturating_sub(buffer.scroll.try_into().unwrap_or_default());
-        let maximum_lines = if buffer.metrics.line_height == 0.0 {
-            0
-        } else {
-            (buffer.height / buffer.metrics.line_height) as i32
-        };
+        let maximum_lines = i32::MAX;
         let bottom_cropped_layout_lines =
             if top_cropped_layout_lines > maximum_lines.try_into().unwrap_or_default() {
                 maximum_lines.try_into().unwrap_or_default()
@@ -209,7 +207,7 @@ impl<'b> LayoutRunIter<'b> {
             line_i: 0,
             layout_i: 0,
             remaining_len: bottom_cropped_layout_lines,
-            line_y: buffer.metrics.y_offset(),
+            line_y: 0.0,
             total_layout: 0,
         }
     }
@@ -236,7 +234,7 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                 }
 
                 self.line_y += layout_line.line_height;
-                if self.line_y - self.buffer.metrics.y_offset() > self.buffer.height {
+                if self.line_y > self.buffer.height {
                     return None;
                 }
 
@@ -248,6 +246,7 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                     glyphs: &layout_line.glyphs,
                     line_y: self.line_y,
                     line_w: layout_line.w,
+                    line_height: layout_line.line_height,
                 });
             }
             self.line_i += 1;
@@ -283,10 +282,6 @@ impl Metrics {
             line_height: self.line_height * scale,
         }
     }
-
-    fn y_offset(&self) -> f32 {
-        self.font_size - self.line_height
-    }
 }
 
 impl fmt::Display for Metrics {
@@ -299,7 +294,6 @@ impl fmt::Display for Metrics {
 pub struct Buffer {
     /// [BufferLine]s (or paragraphs) of text in the buffer
     pub lines: Vec<BufferLine>,
-    metrics: Metrics,
     width: f32,
     height: f32,
     scroll: i32,
@@ -314,12 +308,9 @@ impl Buffer {
     /// # Panics
     ///
     /// Will panic if `metrics.line_height` is zero.
-    pub fn new(metrics: Metrics) -> Self {
-        assert_ne!(metrics.line_height, 0.0, "line height cannot be 0");
-
+    pub fn new() -> Self {
         let mut buffer = Self {
             lines: Vec::new(),
-            metrics,
             width: 0.0,
             height: 0.0,
             scroll: 0,
@@ -406,7 +397,7 @@ impl Buffer {
             self.redraw = true;
         }
 
-        let lines = self.visible_lines();
+        let lines = i32::MAX;
         if layout_i < self.scroll {
             self.scroll = layout_i;
         } else if layout_i >= self.scroll + lines {
@@ -418,7 +409,7 @@ impl Buffer {
 
     /// Shape lines until scroll
     pub fn shape_until_scroll(&mut self) {
-        let lines = self.visible_lines();
+        let lines = i32::MAX;
 
         let scroll_end = self.scroll + lines;
         let total_layout = self.shape_until(scroll_end);
@@ -468,25 +459,6 @@ impl Buffer {
         Some(line.layout(self.width, self.wrap))
     }
 
-    /// Get the current [`Metrics`]
-    pub fn metrics(&self) -> Metrics {
-        self.metrics
-    }
-
-    /// Set the current [`Metrics`]
-    ///
-    /// # Panics
-    ///
-    /// Will panic if `metrics.font_size` is zero.
-    pub fn set_metrics(&mut self, metrics: Metrics) {
-        if metrics != self.metrics {
-            assert_ne!(metrics.font_size, 0.0, "font size cannot be 0");
-            self.metrics = metrics;
-            self.relayout();
-            self.shape_until_scroll();
-        }
-    }
-
     /// Get the current [`Wrap`]
     pub fn wrap(&self) -> Wrap {
         self.wrap
@@ -532,11 +504,6 @@ impl Buffer {
         }
     }
 
-    /// Get the number of lines that can be viewed in the buffer
-    pub fn visible_lines(&self) -> i32 {
-        (self.height / self.metrics.line_height) as i32
-    }
-
     /// Set text of buffer, using provided attributes for each line by default
     pub fn set_text(&mut self, text: &str, attrs: Attrs) {
         self.lines.clear();
@@ -575,9 +542,6 @@ impl Buffer {
         #[cfg(all(feature = "std", not(target_arch = "wasm32")))]
         let instant = std::time::Instant::now();
 
-        let font_size = self.metrics.font_size;
-        let line_height = self.metrics.line_height;
-
         let mut new_cursor_opt = None;
 
         let mut runs = self.layout_runs().peekable();
@@ -585,11 +549,11 @@ impl Buffer {
         while let Some(run) = runs.next() {
             let line_y = run.line_y;
 
-            if first_run && y < line_y - font_size {
+            if first_run && y < line_y - run.line_height {
                 first_run = false;
                 let new_cursor = Cursor::new(run.line_i, 0);
                 new_cursor_opt = Some(new_cursor);
-            } else if y >= line_y - font_size && y < line_y - font_size + line_height {
+            } else if y >= line_y - run.line_height && y < line_y {
                 let mut new_cursor_glyph = run.glyphs.len();
                 let mut new_cursor_char = 0;
                 let mut new_cursor_affinity = Affinity::After;

@@ -103,7 +103,7 @@ where
             }
         }
 
-        let height = layout_lines as f32 * editor.buffer().metrics().line_height;
+        let height = layout_lines as f32 * 20.0;
         let size = Size::new(limits.max().width, height);
         log::info!("size {:?}", size);
 

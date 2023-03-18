@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use cosmic_text::{Attrs, Buffer, Color, Metrics, SwashCache};
+use cosmic_text::{Attrs, Buffer, Color, SwashCache};
 use std::cmp::{self, Ordering};
 use termion::{color, cursor};
 
@@ -8,11 +8,8 @@ fn main() {
     // A SwashCache stores rasterized glyphs, create one per application
     let mut swash_cache = SwashCache::new();
 
-    // Text metrics indicate the font size and line height of a buffer
-    let metrics = Metrics::new(14.0, 20.0);
-
     // A Buffer provides shaping and layout for a UTF-8 string, create one per text widget
-    let mut buffer = Buffer::new(metrics);
+    let mut buffer = Buffer::new();
 
     // Set a size for the text buffer, in pixels
     let width = 80u16;

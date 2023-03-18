@@ -136,12 +136,8 @@ impl Application for Window {
             .monospaced(true)
             .family(cosmic_text::Family::Monospace);
 
-        let mut editor = SyntaxEditor::new(
-            Buffer::new(FontSize::Body.to_metrics()),
-            &SYNTAX_SYSTEM,
-            "base16-eighties.dark",
-        )
-        .unwrap();
+        let mut editor =
+            SyntaxEditor::new(Buffer::new(), &SYNTAX_SYSTEM, "base16-eighties.dark").unwrap();
 
         #[cfg(feature = "vi")]
         let mut editor = cosmic_text::ViEditor::new(editor);
@@ -237,8 +233,6 @@ impl Application for Window {
             }
             Message::FontSizeChanged(font_size) => {
                 self.font_size = font_size;
-                let mut editor = self.editor.lock().unwrap();
-                editor.buffer_mut().set_metrics(font_size.to_metrics());
             }
             Message::WrapChanged(wrap) => {
                 let mut editor = self.editor.lock().unwrap();

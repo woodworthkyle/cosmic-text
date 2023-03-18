@@ -432,9 +432,9 @@ impl Edit for Editor {
             Action::PageDown => {
                 self.action(Action::Vertical(self.buffer.size().1 as i32));
             }
-            Action::Vertical(px) => {
+            Action::Vertical(_px) => {
                 // TODO more efficient
-                let lines = px / self.buffer.metrics().line_height as i32;
+                let lines = 0;
                 match lines.cmp(&0) {
                     Ordering::Less => {
                         for _ in 0..-lines {
@@ -677,9 +677,6 @@ impl Edit for Editor {
     where
         F: FnMut(i32, i32, u32, u32, Color),
     {
-        let font_size = self.buffer.metrics().font_size;
-        let line_height = self.buffer.metrics().line_height;
-
         for run in self.buffer.layout_runs() {
             let line_i = run.line_i;
             let line_y = run.line_y;
@@ -760,9 +757,9 @@ impl Edit for Editor {
                             } else if let Some((min, max)) = range_opt.take() {
                                 f(
                                     min,
-                                    (line_y - font_size) as i32,
+                                    (line_y - run.line_height) as i32,
                                     cmp::max(0, max - min) as u32,
-                                    line_height as u32,
+                                    run.line_height as u32,
                                     Color::rgba(color.r(), color.g(), color.b(), 0x33),
                                 );
                             }
@@ -786,9 +783,9 @@ impl Edit for Editor {
                         }
                         f(
                             min,
-                            (line_y - font_size) as i32,
+                            (line_y - run.line_height) as i32,
                             cmp::max(0, max - min) as u32,
-                            line_height as u32,
+                            run.line_height as u32,
                             Color::rgba(color.r(), color.g(), color.b(), 0x33),
                         );
                     }
@@ -822,7 +819,13 @@ impl Edit for Editor {
                     },
                 };
 
-                f(x, (line_y - font_size) as i32, 1, line_height as u32, color);
+                f(
+                    x,
+                    (line_y - run.line_height) as i32,
+                    1,
+                    run.line_height as u32,
+                    color,
+                );
             }
 
             for glyph in run.glyphs.iter() {

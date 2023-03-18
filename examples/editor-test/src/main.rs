@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use cosmic_text::{Action, Buffer, Color, Edit, Editor, Metrics, SwashCache, FONT_SYSTEM};
+use cosmic_text::{Action, Buffer, Color, Edit, Editor, SwashCache, FONT_SYSTEM};
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
 use std::{env, fs, process, time::Instant};
 use unicode_segmentation::UnicodeSegmentation;
@@ -31,8 +31,6 @@ fn redraw(window: &mut Window, editor: &mut Editor, swash_cache: &mut SwashCache
 fn main() {
     env_logger::init();
 
-    let display_scale = 1.0;
-
     let mut window = Window::new_flags(
         -1,
         -1,
@@ -43,17 +41,7 @@ fn main() {
     )
     .unwrap();
 
-    let font_sizes = [
-        Metrics::new(10.0, 14.0).scale(display_scale), // Caption
-        Metrics::new(14.0, 20.0).scale(display_scale), // Body
-        Metrics::new(20.0, 28.0).scale(display_scale), // Title 4
-        Metrics::new(24.0, 32.0).scale(display_scale), // Title 3
-        Metrics::new(28.0, 36.0).scale(display_scale), // Title 2
-        Metrics::new(32.0, 44.0).scale(display_scale), // Title 1
-    ];
-    let font_size_default = 1; // Body
-
-    let mut buffer = Buffer::new(font_sizes[font_size_default]);
+    let mut buffer = Buffer::new();
     buffer.set_size(window.width() as f32, window.height() as f32);
 
     let mut editor = Editor::new(buffer);

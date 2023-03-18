@@ -49,17 +49,13 @@ fn main() {
         Metrics::new(28.0, 36.0).scale(display_scale), // Title 2
         Metrics::new(32.0, 44.0).scale(display_scale), // Title 1
     ];
-    let font_size_default = 1; // Body
+    let font_size_default = 1usize; // Body
     let mut font_size_i = font_size_default;
 
     let line_x = 8.0 * display_scale;
 
-    let mut editor = SyntaxEditor::new(
-        Buffer::new(font_sizes[font_size_i]),
-        &syntax_system,
-        "base16-eighties.dark",
-    )
-    .unwrap();
+    let mut editor =
+        SyntaxEditor::new(Buffer::new(), &syntax_system, "base16-eighties.dark").unwrap();
 
     #[cfg(feature = "vi")]
     let mut editor = cosmic_text::ViEditor::new(editor);
@@ -156,18 +152,13 @@ fn main() {
                     orbclient::K_DEL if event.pressed => editor.action(Action::Delete),
                     orbclient::K_0 if event.pressed && ctrl_pressed => {
                         font_size_i = font_size_default;
-                        editor.buffer_mut().set_metrics(font_sizes[font_size_i]);
                     }
                     orbclient::K_MINUS if event.pressed && ctrl_pressed => {
-                        if font_size_i > 0 {
-                            font_size_i -= 1;
-                            editor.buffer_mut().set_metrics(font_sizes[font_size_i]);
-                        }
+                        font_size_i = font_size_i.saturating_sub(1);
                     }
                     orbclient::K_EQUALS if event.pressed && ctrl_pressed => {
                         if font_size_i + 1 < font_sizes.len() {
                             font_size_i += 1;
-                            editor.buffer_mut().set_metrics(font_sizes[font_size_i]);
                         }
                     }
                     _ => (),
