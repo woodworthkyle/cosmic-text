@@ -7,7 +7,7 @@ use syntect::highlighting::{
 };
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 
-use crate::{Action, AttrsList, Buffer, Color, Cursor, Edit, Editor, Style, Weight, Wrap};
+use crate::{Action, AttrsList, Color, Cursor, Edit, Editor, Style, TextLayout, Weight, Wrap};
 
 pub struct SyntaxSystem {
     pub syntax_set: SyntaxSet,
@@ -41,7 +41,11 @@ impl<'a> SyntaxEditor<'a> {
     /// A good default theme name is "base16-eighties.dark".
     ///
     /// Returns None if theme not found
-    pub fn new(buffer: Buffer, syntax_system: &'a SyntaxSystem, theme_name: &str) -> Option<Self> {
+    pub fn new(
+        buffer: TextLayout,
+        syntax_system: &'a SyntaxSystem,
+        theme_name: &str,
+    ) -> Option<Self> {
         let editor = Editor::new(buffer);
         let syntax = syntax_system.syntax_set.find_syntax_plain_text();
         let theme = syntax_system.theme_set.themes.get(theme_name)?;
@@ -108,11 +112,11 @@ impl<'a> SyntaxEditor<'a> {
 }
 
 impl<'a> Edit for SyntaxEditor<'a> {
-    fn buffer(&self) -> &Buffer {
+    fn buffer(&self) -> &TextLayout {
         self.editor.buffer()
     }
 
-    fn buffer_mut(&mut self) -> &mut Buffer {
+    fn buffer_mut(&mut self) -> &mut TextLayout {
         self.editor.buffer_mut()
     }
 

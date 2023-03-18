@@ -10,11 +10,11 @@ use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(feature = "swash")]
 use crate::Color;
-use crate::{Action, Affinity, AttrsList, Buffer, BufferLine, Cursor, Edit, LayoutCursor};
+use crate::{Action, Affinity, AttrsList, Cursor, Edit, LayoutCursor, TextLayout, TextLayoutLine};
 
 /// A wrapper of [`Buffer`] for easy editing
 pub struct Editor {
-    buffer: Buffer,
+    buffer: TextLayout,
     cursor: Cursor,
     cursor_x_opt: Option<i32>,
     select_opt: Option<Cursor>,
@@ -23,7 +23,7 @@ pub struct Editor {
 
 impl Editor {
     /// Create a new [`Editor`] with the provided [`Buffer`]
-    pub fn new(buffer: Buffer) -> Self {
+    pub fn new(buffer: TextLayout) -> Self {
         Self {
             buffer,
             cursor: Cursor::default(),
@@ -69,11 +69,11 @@ impl Editor {
 }
 
 impl Edit for Editor {
-    fn buffer(&self) -> &Buffer {
+    fn buffer(&self) -> &TextLayout {
         &self.buffer
     }
 
-    fn buffer_mut(&mut self) -> &mut Buffer {
+    fn buffer_mut(&mut self) -> &mut TextLayout {
         &mut self.buffer
     }
 
@@ -219,11 +219,11 @@ impl Edit for Editor {
             return;
         }
 
-        let line: &mut BufferLine = &mut self.buffer.lines[self.cursor.line];
+        let line: &mut TextLayoutLine = &mut self.buffer.lines[self.cursor.line];
         let insert_line = self.cursor.line + 1;
 
         // Collect text after insertion as a line
-        let after: BufferLine = line.split_off(self.cursor.index);
+        let after: TextLayoutLine = line.split_off(self.cursor.index);
         let after_len = after.text().len();
 
         // Collect attributes
@@ -238,7 +238,7 @@ impl Edit for Editor {
             let mut these_attrs = final_attrs.split_off(data_line.len());
             remaining_split_len -= data_line.len();
             core::mem::swap(&mut these_attrs, &mut final_attrs);
-            line.append(BufferLine::new(
+            line.append(TextLayoutLine::new(
                 data_line
                     .strip_suffix(char::is_control)
                     .unwrap_or(data_line),
@@ -249,7 +249,7 @@ impl Edit for Editor {
         }
         if let Some(data_line) = lines_iter.next_back() {
             remaining_split_len -= data_line.len();
-            let mut tmp = BufferLine::new(
+            let mut tmp = TextLayoutLine::new(
                 data_line
                     .strip_suffix(char::is_control)
                     .unwrap_or(data_line),
@@ -263,7 +263,7 @@ impl Edit for Editor {
         }
         for data_line in lines_iter.rev() {
             remaining_split_len -= data_line.len();
-            let tmp = BufferLine::new(
+            let tmp = TextLayoutLine::new(
                 data_line
                     .strip_suffix(char::is_control)
                     .unwrap_or(data_line),
@@ -574,7 +574,7 @@ impl Edit for Editor {
                 self.buffer.set_scroll(scroll);
             }
             Action::PreviousWord => {
-                let line: &mut BufferLine = &mut self.buffer.lines[self.cursor.line];
+                let line: &mut TextLayoutLine = &mut self.buffer.lines[self.cursor.line];
                 if self.cursor.index > 0 {
                     let mut prev_index = 0;
                     for (i, _) in line.text().unicode_word_indices() {
@@ -595,7 +595,7 @@ impl Edit for Editor {
                 self.cursor_x_opt = None;
             }
             Action::NextWord => {
-                let line: &mut BufferLine = &mut self.buffer.lines[self.cursor.line];
+                let line: &mut TextLayoutLine = &mut self.buffer.lines[self.cursor.line];
                 if self.cursor.index < line.text().len() {
                     for (i, word) in line.text().unicode_word_indices() {
                         let i = i + word.len();

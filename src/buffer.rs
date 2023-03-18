@@ -10,7 +10,7 @@ use unicode_segmentation::UnicodeSegmentation;
 
 #[cfg(feature = "swash")]
 use crate::Color;
-use crate::{Attrs, AttrsList, BufferLine, LayoutGlyph, LayoutLine, ShapeLine, Wrap};
+use crate::{Attrs, AttrsList, LayoutGlyph, LayoutLine, ShapeLine, TextLayoutLine, Wrap};
 
 /// Current cursor location
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
@@ -172,7 +172,7 @@ impl<'a> LayoutRun<'a> {
 
 /// An iterator of visible text lines, see [`LayoutRun`]
 pub struct LayoutRunIter<'b> {
-    buffer: &'b Buffer,
+    buffer: &'b TextLayout,
     line_i: usize,
     layout_i: usize,
     remaining_len: usize,
@@ -181,7 +181,7 @@ pub struct LayoutRunIter<'b> {
 }
 
 impl<'b> LayoutRunIter<'b> {
-    pub fn new(buffer: &'b Buffer) -> Self {
+    pub fn new(buffer: &'b TextLayout) -> Self {
         let total_layout_lines: usize = buffer
             .lines
             .iter()
@@ -291,9 +291,9 @@ impl fmt::Display for Metrics {
 }
 
 /// A buffer of text that is shaped and laid out
-pub struct Buffer {
+pub struct TextLayout {
     /// [BufferLine]s (or paragraphs) of text in the buffer
-    pub lines: Vec<BufferLine>,
+    pub lines: Vec<TextLayoutLine>,
     width: f32,
     height: f32,
     scroll: i32,
@@ -302,7 +302,7 @@ pub struct Buffer {
     wrap: Wrap,
 }
 
-impl Buffer {
+impl TextLayout {
     /// Create a new [`Buffer`] with the provided [`FontSystem`] and [`Metrics`]
     ///
     /// # Panics
@@ -509,12 +509,12 @@ impl Buffer {
         self.lines.clear();
         for line in text.lines() {
             self.lines
-                .push(BufferLine::new(line.to_string(), AttrsList::new(attrs)));
+                .push(TextLayoutLine::new(line.to_string(), AttrsList::new(attrs)));
         }
         // Make sure there is always one line
         if self.lines.is_empty() {
             self.lines
-                .push(BufferLine::new(String::new(), AttrsList::new(attrs)));
+                .push(TextLayoutLine::new(String::new(), AttrsList::new(attrs)));
         }
 
         self.scroll = 0;

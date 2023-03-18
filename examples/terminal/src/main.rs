@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use cosmic_text::{Attrs, Buffer, Color, SwashCache};
+use cosmic_text::{Attrs, Color, SwashCache, TextLayout};
 use std::cmp::{self, Ordering};
 use termion::{color, cursor};
 
@@ -9,7 +9,7 @@ fn main() {
     let mut swash_cache = SwashCache::new();
 
     // A Buffer provides shaping and layout for a UTF-8 string, create one per text widget
-    let mut buffer = Buffer::new();
+    let mut buffer = TextLayout::new();
 
     // Set a size for the text buffer, in pixels
     let width = 80u16;

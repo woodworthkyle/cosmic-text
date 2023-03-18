@@ -11,7 +11,7 @@ use cosmic::{
     iced_winit::renderer::BorderRadius,
     theme::Theme,
 };
-use cosmic_text::{Attrs, AttrsList, BufferLine, Metrics, SwashCache};
+use cosmic_text::{Attrs, AttrsList, Metrics, SwashCache, TextLayoutLine};
 use std::{cmp, sync::Mutex, time::Instant};
 
 pub struct Appearance {
@@ -39,7 +39,7 @@ impl StyleSheet for Theme {
 }
 
 pub struct Text {
-    line: BufferLine,
+    line: TextLayoutLine,
     metrics: Metrics,
 }
 
@@ -48,7 +48,7 @@ impl Text {
         let instant = Instant::now();
 
         //TODO: make it possible to set attrs
-        let mut line = BufferLine::new(string, AttrsList::new(Attrs::new()));
+        let mut line = TextLayoutLine::new(string, AttrsList::new(Attrs::new()));
 
         //TODO: do we have to immediately shape?
         line.shape();

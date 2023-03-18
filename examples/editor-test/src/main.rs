@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
-use cosmic_text::{Action, Buffer, Color, Edit, Editor, SwashCache, FONT_SYSTEM};
+use cosmic_text::{Action, Color, Edit, Editor, SwashCache, TextLayout, FONT_SYSTEM};
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
 use std::{env, fs, process, time::Instant};
 use unicode_segmentation::UnicodeSegmentation;
@@ -41,7 +41,7 @@ fn main() {
     )
     .unwrap();
 
-    let mut buffer = Buffer::new();
+    let mut buffer = TextLayout::new();
     buffer.set_size(window.width() as f32, window.height() as f32);
 
     let mut editor = Editor::new(buffer);

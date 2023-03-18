@@ -12,7 +12,8 @@ use cosmic::{
     Element,
 };
 use cosmic_text::{
-    Align, Attrs, AttrsList, Buffer, Edit, FontSystem, Metrics, SyntaxEditor, SyntaxSystem, Wrap,
+    Align, Attrs, AttrsList, Edit, FontSystem, Metrics, SyntaxEditor, SyntaxSystem, TextLayout,
+    Wrap,
 };
 use std::{env, fmt, fs, path::PathBuf, sync::Mutex};
 
@@ -137,7 +138,7 @@ impl Application for Window {
             .family(cosmic_text::Family::Monospace);
 
         let mut editor =
-            SyntaxEditor::new(Buffer::new(), &SYNTAX_SYSTEM, "base16-eighties.dark").unwrap();
+            SyntaxEditor::new(TextLayout::new(), &SYNTAX_SYSTEM, "base16-eighties.dark").unwrap();
 
         #[cfg(feature = "vi")]
         let mut editor = cosmic_text::ViEditor::new(editor);

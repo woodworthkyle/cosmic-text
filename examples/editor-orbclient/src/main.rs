@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use cosmic_text::{
-    Action, Attrs, Buffer, Edit, Family, Metrics, SwashCache, SyntaxEditor, SyntaxSystem,
+    Action, Attrs, Edit, Family, Metrics, SwashCache, SyntaxEditor, SyntaxSystem, TextLayout,
 };
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
 use std::{
@@ -55,7 +55,7 @@ fn main() {
     let line_x = 8.0 * display_scale;
 
     let mut editor =
-        SyntaxEditor::new(Buffer::new(), &syntax_system, "base16-eighties.dark").unwrap();
+        SyntaxEditor::new(TextLayout::new(), &syntax_system, "base16-eighties.dark").unwrap();
 
     #[cfg(feature = "vi")]
     let mut editor = cosmic_text::ViEditor::new(editor);

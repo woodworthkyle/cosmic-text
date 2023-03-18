@@ -4,7 +4,7 @@ use alloc::{string::String, vec::Vec};
 use crate::{Align, AttrsList, LayoutLine, ShapeLine, Wrap};
 
 /// A line (or paragraph) of text that is shaped and laid out
-pub struct BufferLine {
+pub struct TextLayoutLine {
     //TODO: make this not pub(crate)
     text: String,
     attrs_list: AttrsList,
@@ -14,7 +14,7 @@ pub struct BufferLine {
     layout_opt: Option<Vec<LayoutLine>>,
 }
 
-impl BufferLine {
+impl TextLayoutLine {
     /// Create a new line with the given text and attributes list
     /// Cached shaping and layout can be done using the [`Self::shape`] and
     /// [`Self::layout`] functions

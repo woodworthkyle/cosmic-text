@@ -3,7 +3,7 @@ use alloc::string::String;
 
 #[cfg(feature = "swash")]
 use crate::Color;
-use crate::{AttrsList, Buffer, Cursor};
+use crate::{AttrsList, Cursor, TextLayout};
 
 pub use self::editor::*;
 mod editor;
@@ -80,10 +80,10 @@ pub enum Action {
 /// A trait to allow easy replacements of [`Editor`], like `SyntaxEditor`
 pub trait Edit {
     /// Get the internal [`Buffer`]
-    fn buffer(&self) -> &Buffer;
+    fn buffer(&self) -> &TextLayout;
 
     /// Get the internal [`Buffer`], mutably
-    fn buffer_mut(&mut self) -> &mut Buffer;
+    fn buffer_mut(&mut self) -> &mut TextLayout;
 
     /// Get the current cursor position
     fn cursor(&self) -> Cursor;
