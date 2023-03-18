@@ -167,7 +167,7 @@ impl BufferLine {
     }
 
     /// Shape line, will cache results
-    pub fn shape(&mut self, font_system: &FontSystem) -> &ShapeLine {
+    pub fn shape(&mut self, font_system: &mut FontSystem) -> &ShapeLine {
         if self.shape_opt.is_none() {
             self.shape_opt = Some(ShapeLine::new(font_system, &self.text, &self.attrs_list));
             self.layout_opt = None;
