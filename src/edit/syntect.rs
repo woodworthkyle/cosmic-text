@@ -1,5 +1,6 @@
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
+use peniko::Color;
 #[cfg(feature = "std")]
 use std::{fs, io, path::Path};
 use syntect::highlighting::{
@@ -7,7 +8,7 @@ use syntect::highlighting::{
 };
 use syntect::parsing::{ParseState, ScopeStack, SyntaxReference, SyntaxSet};
 
-use crate::{Action, AttrsList, Color, Cursor, Edit, Editor, Style, TextLayout, Weight, Wrap};
+use crate::{Action, AttrsList, Cursor, Edit, Editor, Style, TextLayout, Weight, Wrap};
 
 pub struct SyntaxSystem {
     pub syntax_set: SyntaxSet,
@@ -71,7 +72,9 @@ impl<'a> SyntaxEditor<'a> {
         let path = path.as_ref();
 
         let text = fs::read_to_string(path)?;
-        self.editor.buffer_mut().set_text(&text, attrs);
+        self.editor
+            .buffer_mut()
+            .set_text(&text, AttrsList::new(attrs));
 
         //TODO: re-use text
         self.syntax = match self.syntax_system.syntax_set.find_syntax_for_file(path) {
@@ -95,18 +98,18 @@ impl<'a> SyntaxEditor<'a> {
     /// Get the default background color
     pub fn background_color(&self) -> Color {
         if let Some(background) = self.theme.settings.background {
-            Color::rgba(background.r, background.g, background.b, background.a)
+            Color::rgba8(background.r, background.g, background.b, background.a)
         } else {
-            Color::rgb(0, 0, 0)
+            Color::rgb8(0, 0, 0)
         }
     }
 
     /// Get the default foreground (text) color
     pub fn foreground_color(&self) -> Color {
         if let Some(foreground) = self.theme.settings.foreground {
-            Color::rgba(foreground.r, foreground.g, foreground.b, foreground.a)
+            Color::rgba8(foreground.r, foreground.g, foreground.b, foreground.a)
         } else {
-            Color::rgb(0xFF, 0xFF, 0xFF)
+            Color::rgb8(0xFF, 0xFF, 0xFF)
         }
     }
 }
@@ -172,7 +175,7 @@ impl<'a> Edit for SyntaxEditor<'a> {
                 attrs_list.add_span(
                     range,
                     attrs
-                        .color(Color::rgba(
+                        .color(Color::rgba8(
                             style.foreground.r,
                             style.foreground.g,
                             style.foreground.b,

@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use fontdb::Family;
 use unicode_script::Script;
 
-use crate::{Font, FONT_SYSTEM};
+use crate::{Attrs, Font, FONT_SYSTEM};
 
 use self::platform::*;
 
@@ -27,8 +27,8 @@ mod platform;
 mod platform;
 
 pub struct FontFallbackIter<'a> {
-    font_ids: &'a [fontdb::ID],
     default_families: &'a [&'a Family<'a>],
+    attrs: Attrs<'a>,
     default_i: usize,
     scripts: Vec<Script>,
     script_i: (usize, usize),
@@ -39,12 +39,12 @@ pub struct FontFallbackIter<'a> {
 
 impl<'a> FontFallbackIter<'a> {
     pub fn new(
-        font_ids: &'a [fontdb::ID],
+        attrs: Attrs<'a>,
         default_families: &'a [&'a Family<'a>],
         scripts: Vec<Script>,
     ) -> Self {
         Self {
-            font_ids,
+            attrs,
             default_families,
             default_i: 0,
             scripts,
@@ -65,10 +65,9 @@ impl<'a> FontFallbackIter<'a> {
             );
         } else if self.other_i > 0 {
             log::debug!(
-                "Failed to find preset fallback for {:?} locale '{}', used '{}': '{}'",
+                "Failed to find preset fallback for {:?} locale '{}', used  '{}'",
                 self.scripts,
                 FONT_SYSTEM.locale(),
-                FONT_SYSTEM.face_name(self.font_ids[self.other_i - 1]),
                 word
             );
         } else if !self.scripts.is_empty() && self.common_i > 0 {
@@ -89,12 +88,10 @@ impl<'a> Iterator for FontFallbackIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         while self.default_i < self.default_families.len() {
             self.default_i += 1;
-            for id in self.font_ids.iter() {
-                let default_family = self.default_families[self.default_i - 1];
-                if FONT_SYSTEM.face_contains_family(*id, default_family) {
-                    if let Some(font) = FONT_SYSTEM.get_font(*id) {
-                        return Some(font);
-                    }
+            let default_family = self.default_families[self.default_i - 1];
+            if let Some(id) = FONT_SYSTEM.query(*default_family, self.attrs) {
+                if let Some(font) = FONT_SYSTEM.get_font(id) {
+                    return Some(font);
                 }
             }
         }
@@ -106,11 +103,10 @@ impl<'a> Iterator for FontFallbackIter<'a> {
             while self.script_i.1 < script_families.len() {
                 let script_family = script_families[self.script_i.1];
                 self.script_i.1 += 1;
-                for id in self.font_ids.iter() {
-                    if FONT_SYSTEM.face_contains_family_name(*id, script_family) {
-                        if let Some(font) = FONT_SYSTEM.get_font(*id) {
-                            return Some(font);
-                        }
+
+                if let Some(id) = FONT_SYSTEM.query(Family::Name(script_family), self.attrs) {
+                    if let Some(font) = FONT_SYSTEM.get_font(id) {
+                        return Some(font);
                     }
                 }
                 log::debug!(
@@ -129,11 +125,10 @@ impl<'a> Iterator for FontFallbackIter<'a> {
         while self.common_i < common_families.len() {
             let common_family = common_families[self.common_i];
             self.common_i += 1;
-            for id in self.font_ids.iter() {
-                if FONT_SYSTEM.face_contains_family_name(*id, common_family) {
-                    if let Some(font) = FONT_SYSTEM.get_font(*id) {
-                        return Some(font);
-                    }
+
+            if let Some(id) = FONT_SYSTEM.query(Family::Name(common_family), self.attrs) {
+                if let Some(font) = FONT_SYSTEM.get_font(id) {
+                    return Some(font);
                 }
             }
             log::debug!("failed to find family '{}'", common_family);
@@ -142,13 +137,8 @@ impl<'a> Iterator for FontFallbackIter<'a> {
         //TODO: do we need to do this?
         //TODO: do not evaluate fonts more than once!
         let forbidden_families = forbidden_fallback();
-        while self.other_i < self.font_ids.len() {
-            let id = self.font_ids[self.other_i];
-            self.other_i += 1;
-            if forbidden_families
-                .iter()
-                .all(|family_name| !FONT_SYSTEM.face_contains_family_name(id, family_name))
-            {
+        for family in forbidden_families.iter() {
+            if let Some(id) = FONT_SYSTEM.query(Family::Name(family), self.attrs) {
                 if let Some(font) = FONT_SYSTEM.get_font(id) {
                     return Some(font);
                 }

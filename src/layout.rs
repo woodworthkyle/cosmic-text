@@ -4,11 +4,12 @@ use core::fmt::Display;
 
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+use peniko::Color;
 
-use crate::{CacheKey, Color};
+use crate::CacheKey;
 
 /// A laid out glyph
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct LayoutGlyph {
     /// Start index of cluster in original line
     pub start: usize,
@@ -18,6 +19,8 @@ pub struct LayoutGlyph {
     pub x: f32,
     /// width of hitbox
     pub w: f32,
+    /// font size
+    pub font_size: f32,
     /// Unicode BiDi embedding level, character is left-to-right if `level` is divisible by 2
     pub level: unicode_bidi::Level,
     /// Cache key, see [CacheKey]
@@ -47,12 +50,13 @@ pub struct LayoutGlyph {
     /// Integer component of Y offset in line
     pub y_int: i32,
     /// Optional color override
-    pub color_opt: Option<Color>,
+    pub color: Color,
     /// Metadata from `Attrs`
     pub metadata: usize,
 }
 
 /// A line of laid out glyphs
+#[derive(Clone)]
 pub struct LayoutLine {
     /// Width of the line
     pub w: f32,
@@ -60,6 +64,10 @@ pub struct LayoutLine {
     pub glyphs: Vec<LayoutGlyph>,
     /// height of this line
     pub line_height: f32,
+    /// max font size on this line
+    pub cap_height: f32,
+    pub ascent: f32,
+    pub descent: f32,
 }
 
 /// Wrapping mode

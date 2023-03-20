@@ -8,9 +8,9 @@ use core::{
 };
 use unicode_segmentation::UnicodeSegmentation;
 
-#[cfg(feature = "swash")]
-use crate::Color;
 use crate::{Action, Affinity, AttrsList, Cursor, Edit, LayoutCursor, TextLayout, TextLayoutLine};
+#[cfg(feature = "swash")]
+use peniko::Color;
 
 /// A wrapper of [`Buffer`] for easy editing
 pub struct Editor {
@@ -427,10 +427,10 @@ impl Edit for Editor {
                 self.buffer.set_redraw(true);
             }
             Action::PageUp => {
-                self.action(Action::Vertical(-self.buffer.size().1 as i32));
+                self.action(Action::Vertical(-self.buffer.size().height as i32));
             }
             Action::PageDown => {
-                self.action(Action::Vertical(self.buffer.size().1 as i32));
+                self.action(Action::Vertical(self.buffer.size().height as i32));
             }
             Action::Vertical(_px) => {
                 // TODO more efficient
@@ -760,7 +760,7 @@ impl Edit for Editor {
                                     (line_y - run.line_height) as i32,
                                     cmp::max(0, max - min) as u32,
                                     run.line_height as u32,
-                                    Color::rgba(color.r(), color.g(), color.b(), 0x33),
+                                    Color::rgba8(color.r, color.g, color.b, 0x33),
                                 );
                             }
                             c_x += c_w;
@@ -769,7 +769,7 @@ impl Edit for Editor {
 
                     if run.glyphs.is_empty() && end.line > line_i {
                         // Highlight all of internal empty lines
-                        range_opt = Some((0, self.buffer.size().0 as i32));
+                        range_opt = Some((0, self.buffer.size().width as i32));
                     }
 
                     if let Some((mut min, mut max)) = range_opt.take() {
@@ -778,7 +778,7 @@ impl Edit for Editor {
                             if run.rtl {
                                 min = 0;
                             } else {
-                                max = self.buffer.size().0 as i32;
+                                max = self.buffer.size().width as i32;
                             }
                         }
                         f(
@@ -786,7 +786,7 @@ impl Edit for Editor {
                             (line_y - run.line_height) as i32,
                             cmp::max(0, max - min) as u32,
                             run.line_height as u32,
-                            Color::rgba(color.r(), color.g(), color.b(), 0x33),
+                            Color::rgba8(color.r, color.g, color.b, 0x33),
                         );
                     }
                 }
@@ -831,10 +831,7 @@ impl Edit for Editor {
             for glyph in run.glyphs.iter() {
                 let (cache_key, x_int, y_int) = (glyph.cache_key, glyph.x_int, glyph.y_int);
 
-                let glyph_color = match glyph.color_opt {
-                    Some(some) => some,
-                    None => color,
-                };
+                let glyph_color = glyph.color;
 
                 cache.with_pixels(cache_key, glyph_color, |x, y, color| {
                     f(x_int + x, line_y as i32 + y_int + y, 1, 1, color);

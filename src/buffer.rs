@@ -6,11 +6,26 @@ use alloc::{
     vec::Vec,
 };
 use core::{cmp, fmt};
+use peniko::kurbo::{Point, Size};
 use unicode_segmentation::UnicodeSegmentation;
 
-#[cfg(feature = "swash")]
-use crate::Color;
 use crate::{Attrs, AttrsList, LayoutGlyph, LayoutLine, ShapeLine, TextLayoutLine, Wrap};
+#[cfg(feature = "swash")]
+use peniko::Color;
+
+pub struct HitPoint {
+    /// Text line the cursor is on
+    pub line: usize,
+    /// First-byte-index of glyph at cursor (will insert behind this glyph)
+    pub index: usize,
+}
+
+pub struct HitPosition {
+    /// Text line the cursor is on
+    pub line: usize,
+    /// Point of the cursor
+    pub point: Point,
+}
 
 /// Current cursor location
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq, Ord, PartialOrd)]
@@ -233,6 +248,7 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                     continue;
                 }
 
+                let offset = ((layout_line.line_height - layout_line.cap_height) / 2.0).max(0.0);
                 self.line_y += layout_line.line_height;
                 if self.line_y > self.buffer.height {
                     return None;
@@ -244,7 +260,7 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                     text: line.text(),
                     rtl: shape.rtl,
                     glyphs: &layout_line.glyphs,
-                    line_y: self.line_y,
+                    line_y: self.line_y - offset,
                     line_w: layout_line.w,
                     line_height: layout_line.line_height,
                 });
@@ -291,6 +307,7 @@ impl fmt::Display for Metrics {
 }
 
 /// A buffer of text that is shaped and laid out
+#[derive(Clone)]
 pub struct TextLayout {
     /// [BufferLine]s (or paragraphs) of text in the buffer
     pub lines: Vec<TextLayoutLine>,
@@ -311,13 +328,13 @@ impl TextLayout {
     pub fn new() -> Self {
         let mut buffer = Self {
             lines: Vec::new(),
-            width: 0.0,
-            height: 0.0,
+            width: f32::MAX,
+            height: f32::MAX,
             scroll: 0,
             redraw: false,
             wrap: Wrap::Word,
         };
-        buffer.set_text("", Attrs::new());
+        buffer.set_text("", AttrsList::new(Attrs::new()));
         buffer
     }
 
@@ -473,11 +490,19 @@ impl TextLayout {
         }
     }
 
-    /// Get the current buffer dimensions (width, height)
-    pub fn size(&self) -> (f32, f32) {
-        (self.width, self.height)
-    }
+    pub fn size(&self) -> Size {
+        self.layout_runs()
+            .fold(Size::new(0.0, 0.0), |mut size, run| {
+                let new_width = run.line_w as f64;
+                if new_width > size.width {
+                    size.width = new_width;
+                }
 
+                size.height += run.line_height as f64;
+
+                size
+            })
+    }
     /// Set the current buffer dimensions
     pub fn set_size(&mut self, width: f32, height: f32) {
         let clamped_width = width.max(0.0);
@@ -505,16 +530,24 @@ impl TextLayout {
     }
 
     /// Set text of buffer, using provided attributes for each line by default
-    pub fn set_text(&mut self, text: &str, attrs: Attrs) {
+    pub fn set_text(&mut self, text: &str, attrs: AttrsList) {
         self.lines.clear();
-        for line in text.lines() {
+        let mut attrs = attrs;
+        for line in text.split_terminator('\n') {
+            let l = line.len();
+            let (line, had_r) = if l > 0 && line.as_bytes()[l - 1] == b'\r' {
+                (&line[0..l - 1], true)
+            } else {
+                (line, false)
+            };
+            let new_attrs = attrs.split_off(line.len() + 1 + if had_r { 1 } else { 0 });
             self.lines
-                .push(TextLayoutLine::new(line.to_string(), AttrsList::new(attrs)));
+                .push(TextLayoutLine::new(line.to_string(), attrs.clone()));
+            attrs = new_attrs;
         }
         // Make sure there is always one line
         if self.lines.is_empty() {
-            self.lines
-                .push(TextLayoutLine::new(String::new(), AttrsList::new(attrs)));
+            self.lines.push(TextLayoutLine::new(String::new(), attrs));
         }
 
         self.scroll = 0;
@@ -535,6 +568,123 @@ impl TextLayout {
     /// Get the visible layout runs for rendering and other tasks
     pub fn layout_runs(&self) -> LayoutRunIter {
         LayoutRunIter::new(self)
+    }
+
+    pub fn hit_point(&self, point: Point) -> HitPoint {
+        let x = point.x as f32;
+        let y = point.y as f32;
+        let mut hit_point = HitPoint { index: 0, line: 0 };
+
+        let mut runs = self.layout_runs().peekable();
+        let mut first_run = true;
+        while let Some(run) = runs.next() {
+            let line_y = run.line_y;
+
+            if first_run && y < line_y - run.line_height {
+                first_run = false;
+                hit_point.line = run.line_i;
+                hit_point.index = 0;
+            } else if y >= line_y - run.line_height && y < line_y {
+                let mut new_cursor_glyph = run.glyphs.len();
+                let mut new_cursor_char = 0;
+
+                let mut first_glyph = true;
+
+                'hit: for (glyph_i, glyph) in run.glyphs.iter().enumerate() {
+                    if first_glyph {
+                        first_glyph = false;
+                        if (run.rtl && x > glyph.x) || (!run.rtl && x < 0.0) {
+                            new_cursor_glyph = 0;
+                            new_cursor_char = 0;
+                        }
+                    }
+                    if x >= glyph.x && x <= glyph.x + glyph.w {
+                        new_cursor_glyph = glyph_i;
+
+                        let cluster = &run.text[glyph.start..glyph.end];
+                        let total = cluster.grapheme_indices(true).count();
+                        let mut egc_x = glyph.x;
+                        let egc_w = glyph.w / (total as f32);
+                        for (egc_i, egc) in cluster.grapheme_indices(true) {
+                            if x >= egc_x && x <= egc_x + egc_w {
+                                new_cursor_char = egc_i;
+
+                                let right_half = x >= egc_x + egc_w / 2.0;
+                                if right_half != glyph.level.is_rtl() {
+                                    // If clicking on last half of glyph, move cursor past glyph
+                                    new_cursor_char += egc.len();
+                                }
+                                break 'hit;
+                            }
+                            egc_x += egc_w;
+                        }
+
+                        let right_half = x >= glyph.x + glyph.w / 2.0;
+                        if right_half != glyph.level.is_rtl() {
+                            // If clicking on last half of glyph, move cursor past glyph
+                            new_cursor_char = cluster.len();
+                        }
+                        break 'hit;
+                    }
+                }
+
+                hit_point.line = run.line_i;
+                hit_point.index = 0;
+
+                match run.glyphs.get(new_cursor_glyph) {
+                    Some(glyph) => {
+                        // Position at glyph
+                        hit_point.index = glyph.start + new_cursor_char;
+                    }
+                    None => {
+                        if let Some(glyph) = run.glyphs.last() {
+                            // Position at end of line
+                            hit_point.index = glyph.end;
+                        }
+                    }
+                }
+
+                break;
+            } else if runs.peek().is_none() && y > run.line_y {
+                let mut new_cursor = Cursor::new(run.line_i, 0);
+                if let Some(glyph) = run.glyphs.last() {
+                    new_cursor = run.cursor_from_glyph_right(glyph);
+                }
+                hit_point.line = new_cursor.line;
+                hit_point.index = new_cursor.index;
+            }
+        }
+
+        hit_point
+    }
+
+    pub fn hit_position(&self, idx: usize) -> HitPosition {
+        for (line, run) in self.layout_runs().enumerate() {
+            for glyph in run.glyphs {
+                if (glyph.start..glyph.end).contains(&idx) {
+                    return HitPosition {
+                        line,
+                        point: Point::new(glyph.x as f64, run.line_y as f64),
+                    };
+                }
+            }
+        }
+
+        if idx > 0 {
+            if let Some((line, run)) = self.layout_runs().enumerate().last() {
+                if let Some(glyph) = run.glyphs.last() {
+                    return HitPosition {
+                        line,
+                        point: Point::new((glyph.x + glyph.w) as f64, run.line_y as f64),
+                    };
+                }
+            }
+        }
+
+        HitPosition {
+            line: 0,
+            point: Point::ZERO,
+        }
     }
 
     /// Convert x, y position to Cursor (hit detection)
@@ -645,10 +795,7 @@ impl TextLayout {
             for glyph in run.glyphs.iter() {
                 let (cache_key, x_int, y_int) = (glyph.cache_key, glyph.x_int, glyph.y_int);
 
-                let glyph_color = match glyph.color_opt {
-                    Some(some) => some,
-                    None => color,
-                };
+                let glyph_color = glyph.color;
 
                 cache.with_pixels(cache_key, glyph_color, |x, y, color| {
                     f(x_int + x, run.line_y as i32 + y_int + y, 1, 1, color);

@@ -1,9 +1,9 @@
 #[cfg(not(feature = "std"))]
 use alloc::string::String;
 
-#[cfg(feature = "swash")]
-use crate::Color;
 use crate::{AttrsList, Cursor, TextLayout};
+#[cfg(feature = "swash")]
+use peniko::Color;
 
 pub use self::editor::*;
 mod editor;

@@ -5,24 +5,21 @@ use alloc::vec::Vec;
 use core::cmp::{max, min};
 use core::mem;
 use core::ops::Range;
+use once_cell::sync::Lazy;
+use peniko::Color;
+use rustybuzz::{GlyphBuffer, GlyphInfo, GlyphPosition};
+use std::sync::Arc;
+use stretto::{Cache, ValueRef};
 use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
 use crate::fallback::FontFallbackIter;
-use crate::{Align, AttrsList, CacheKey, Color, Font, LayoutGlyph, LayoutLine, Wrap, FONT_SYSTEM};
+use crate::{Align, AttrsList, CacheKey, Font, LayoutGlyph, LayoutLine, Wrap, FONT_SYSTEM};
 
-fn shape_fallback(
-    font: &Font,
-    line: &str,
-    attrs_list: &AttrsList,
-    start_run: usize,
-    end_run: usize,
-    span_rtl: bool,
-) -> (Vec<ShapeGlyph>, Vec<usize>) {
-    let run = &line[start_run..end_run];
+static SHAPED_RUNS: Lazy<Cache<(fontdb::ID, String), Arc<(Vec<GlyphInfo>, Vec<GlyphPosition>)>>> =
+    Lazy::new(|| Cache::new(12960, 1e5 as i64).expect("can't create cache"));
 
-    let font_scale = font.rustybuzz().units_per_em() as f32;
-
+fn shape_raw(font: &Font, run: &str, span_rtl: bool) -> GlyphBuffer {
     let mut buffer = rustybuzz::UnicodeBuffer::new();
     buffer.set_direction(if span_rtl {
         rustybuzz::Direction::RightToLeft
@@ -35,9 +32,43 @@ fn shape_fallback(
     let rtl = matches!(buffer.direction(), rustybuzz::Direction::RightToLeft);
     assert_eq!(rtl, span_rtl);
 
-    let glyph_buffer = rustybuzz::shape(font.rustybuzz(), &[], buffer);
-    let glyph_infos = glyph_buffer.glyph_infos();
-    let glyph_positions = glyph_buffer.glyph_positions();
+    rustybuzz::shape(font.rustybuzz(), &[], buffer)
+}
+
+fn shape(font: &Font, run: &str, span_rtl: bool) -> Arc<(Vec<GlyphInfo>, Vec<GlyphPosition>)> {
+    let key = (font.id(), run.to_string());
+    if let Some(buffer) = SHAPED_RUNS.get(&key) {
+        return buffer.value().clone();
+    }
+
+    let glyph_buffer = shape_raw(font, run, span_rtl);
+    let data = Arc::new((
+        glyph_buffer.glyph_infos().to_vec(),
+        glyph_buffer.glyph_positions().to_vec(),
+    ));
+    SHAPED_RUNS.insert(key, data.clone(), 0);
+    data
+}
+
+fn shape_fallback(
+    font: &Font,
+    line: &str,
+    attrs_list: &AttrsList,
+    start_run: usize,
+    end_run: usize,
+    span_rtl: bool,
+) -> (Vec<ShapeGlyph>, Vec<usize>) {
+    let run = &line[start_run..end_run];
+
+    let metrics = font.metrics();
+    let font_scale = metrics.units_per_em as f32;
+
+    let rtl = span_rtl;
+
+    let glyph_buffer = shape(font, run, span_rtl);
+
+    let glyph_infos = &glyph_buffer.0;
+    let glyph_positions = &glyph_buffer.1;
 
     let mut missing = Vec::new();
     let mut glyphs = Vec::with_capacity(glyph_infos.len());
@@ -48,11 +79,17 @@ fn shape_fallback(
         let y_advance = (pos.y_advance * attrs.font_size as i32) as f32 / font_scale;
         let x_offset = (pos.x_offset * attrs.font_size as i32) as f32 / font_scale;
         let y_offset = (pos.y_offset * attrs.font_size as i32) as f32 / font_scale;
-
+        let ascent = metrics.ascent * attrs.font_size / font_scale;
+        let descent = metrics.descent * attrs.font_size / font_scale;
+        let height = ascent + descent;
+        let cap_height = metrics
+            .cap_height
+            .map(|h| h * attrs.font_size / font_scale)
+            .unwrap_or(height);
         let line_height = match attrs.line_height {
-            h if h == 0.0 => attrs.font_size,
+            h if h == 0.0 => height,
             h if h > 8.0 => h,
-            h => h * attrs.font_size,
+            h => h * height,
         };
 
         if info.glyph_id == 0 {
@@ -66,12 +103,15 @@ fn shape_fallback(
             y_advance,
             x_offset,
             y_offset,
+            ascent,
+            descent,
             font_size: attrs.font_size,
             line_height,
+            cap_height,
             font_id: font.id(),
             glyph_id: info.glyph_id.try_into().expect("failed to cast glyph ID"),
             //TODO: color should not be related to shaping
-            color_opt: attrs.color_opt,
+            color: attrs.color,
             metadata: attrs.metadata,
         });
     }
@@ -128,10 +168,8 @@ fn shape_run(
 
     let attrs = attrs_list.get_span(start_run);
 
-    let fonts = FONT_SYSTEM.get_font_matches(attrs);
-
     let default_families = [&attrs.family];
-    let mut font_iter = FontFallbackIter::new(&fonts, &default_families, scripts);
+    let mut font_iter = FontFallbackIter::new(attrs, &default_families, scripts);
 
     let font = font_iter.next().expect("no default font found");
 
@@ -220,6 +258,7 @@ fn shape_run(
 }
 
 /// A shaped glyph
+#[derive(Clone)]
 pub struct ShapeGlyph {
     pub start: usize,
     pub end: usize,
@@ -229,9 +268,12 @@ pub struct ShapeGlyph {
     pub y_offset: f32,
     pub font_size: f32,
     pub line_height: f32,
+    pub cap_height: f32,
+    pub ascent: f32,
+    pub descent: f32,
     pub font_id: fontdb::ID,
     pub glyph_id: u16,
-    pub color_opt: Option<Color>,
+    pub color: Color,
     pub metadata: usize,
 }
 
@@ -251,19 +293,21 @@ impl ShapeGlyph {
             end: self.end,
             x,
             w,
+            font_size: self.font_size,
             level,
             cache_key,
             x_offset,
             y_offset,
             x_int,
             y_int,
-            color_opt: self.color_opt,
+            color: self.color,
             metadata: self.metadata,
         }
     }
 }
 
 /// A shaped word (for word wrapping)
+#[derive(Clone)]
 pub struct ShapeWord {
     pub blank: bool,
     pub glyphs: Vec<ShapeGlyph>,
@@ -333,6 +377,7 @@ impl ShapeWord {
 }
 
 /// A shaped span (for bidirectional processing)
+#[derive(Clone)]
 pub struct ShapeSpan {
     pub level: unicode_bidi::Level,
     pub words: Vec<ShapeWord>,
@@ -409,6 +454,7 @@ impl ShapeSpan {
 }
 
 /// A shaped line (or paragraph)
+#[derive(Clone)]
 pub struct ShapeLine {
     pub rtl: bool,
     pub spans: Vec<ShapeSpan>,
@@ -638,6 +684,9 @@ impl ShapeLine {
         let mut x;
         let mut y;
         let mut line_height = 0.0f32;
+        let mut cap_height = 0.0f32;
+        let mut ascent = 0.0f32;
+        let mut descent = 0.0f32;
 
         // This would keep the maximum number of spans that would fit on a visual line
         // If one span is too large, this variable will hold the range of words inside that span
@@ -909,6 +958,9 @@ impl ShapeLine {
                                 }
                                 y += y_advance;
                                 line_height = line_height.max(glyph.line_height);
+                                cap_height = cap_height.max(glyph.cap_height);
+                                ascent = ascent.max(glyph.ascent);
+                                descent = descent.max(glyph.descent);
                             }
                         } else {
                             for i in *starting_word..*ending_word + 1 {
@@ -939,6 +991,9 @@ impl ShapeLine {
                                         }
                                         y += y_advance;
                                         line_height = line_height.max(glyph.line_height);
+                                        cap_height = cap_height.max(glyph.cap_height);
+                                        ascent = ascent.max(glyph.ascent);
+                                        descent = descent.max(glyph.descent);
                                     }
                                 }
                             }
@@ -980,6 +1035,9 @@ impl ShapeLine {
                                 x += x_advance;
                                 y += y_advance;
                                 line_height = line_height.max(glyph.line_height);
+                                cap_height = cap_height.max(glyph.cap_height);
+                                ascent = ascent.max(glyph.ascent);
+                                descent = descent.max(glyph.descent);
                             }
                         } else {
                             for i in *starting_word..*ending_word + 1 {
@@ -1010,6 +1068,9 @@ impl ShapeLine {
                                         x += x_advance;
                                         y += y_advance;
                                         line_height = line_height.max(glyph.line_height);
+                                        cap_height = cap_height.max(glyph.cap_height);
+                                        ascent = ascent.max(glyph.ascent);
+                                        descent = descent.max(glyph.descent);
                                     }
                                 }
                             }
@@ -1023,6 +1084,9 @@ impl ShapeLine {
                 w: if self.rtl { start_x - x } else { x },
                 glyphs: glyphs_swap,
                 line_height,
+                cap_height,
+                ascent,
+                descent,
             });
             push_line = false;
         }
@@ -1032,6 +1096,9 @@ impl ShapeLine {
                 w: 0.0,
                 glyphs: Default::default(),
                 line_height,
+                cap_height,
+                ascent,
+                descent,
             });
         }
 

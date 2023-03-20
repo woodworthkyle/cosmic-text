@@ -2,11 +2,11 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use fontdb::Family;
+use fontdb::{Family, Query};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
-use crate::{Attrs, Font, FontAttrs};
+use crate::{Attrs, FamilyOwned, Font, FontAttrs};
 
 pub static FONT_SYSTEM: Lazy<FontSystem> = Lazy::new(FontSystem::new);
 
@@ -15,7 +15,7 @@ pub struct FontSystem {
     locale: String,
     db: RwLock<fontdb::Database>,
     font_cache: RwLock<HashMap<fontdb::ID, Option<Arc<Font>>>>,
-    font_matches_cache: RwLock<HashMap<FontAttrs, Arc<Vec<fontdb::ID>>>>,
+    quey_cache: RwLock<HashMap<FontAttrs, Option<fontdb::ID>>>,
 }
 
 impl FontSystem {
@@ -73,7 +73,7 @@ impl FontSystem {
             locale,
             db: RwLock::new(db),
             font_cache: RwLock::new(HashMap::new()),
-            font_matches_cache: RwLock::new(HashMap::new()),
+            quey_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -105,53 +105,30 @@ impl FontSystem {
             .clone()
     }
 
-    pub fn get_font_matches(&self, attrs: Attrs) -> Arc<Vec<fontdb::ID>> {
-        let font_attrs: FontAttrs = attrs.into();
-        if let Some(f) = self.font_matches_cache.read().get(&font_attrs) {
-            return f.clone();
+    pub fn query(&self, family: Family, attrs: Attrs) -> Option<fontdb::ID> {
+        let font_attrs = FontAttrs {
+            family: vec![FamilyOwned::new(family)],
+            monospaced: attrs.monospaced,
+            stretch: attrs.stretch,
+            style: attrs.style,
+            weight: attrs.weight,
+        };
+        if let Some(f) = self.quey_cache.read().get(&font_attrs) {
+            return *f;
         }
-        self.font_matches_cache
+
+        *self
+            .quey_cache
             .write()
             .entry(font_attrs)
             .or_insert_with(|| {
-                #[cfg(not(target_arch = "wasm32"))]
-                let now = std::time::Instant::now();
-
-                let ids = self
-                    .db
-                    .read()
-                    .faces()
-                    .filter(|face| attrs.matches(face))
-                    .map(|face| face.id)
-                    .collect::<Vec<_>>();
-
-                #[cfg(not(target_arch = "wasm32"))]
-                {
-                    let elapsed = now.elapsed();
-                    log::debug!("font matches for {:?} in {:?}", attrs, elapsed);
-                }
-
-                Arc::new(ids)
+                self.db.read().query(&Query {
+                    families: &[family],
+                    style: attrs.style,
+                    weight: attrs.weight,
+                    stretch: attrs.stretch,
+                })
             })
-            .clone()
-    }
-
-    pub fn face_contains_family(&self, id: fontdb::ID, family: &Family) -> bool {
-        let db = self.db.read();
-        if let Some(face) = db.face(id) {
-            let family_name = db.family_name(family);
-            face.families.iter().any(|(name, _)| name == family_name)
-        } else {
-            false
-        }
-    }
-
-    pub fn face_contains_family_name(&self, id: fontdb::ID, family_name: &str) -> bool {
-        if let Some(face) = self.db.read().face(id) {
-            face.families.iter().any(|(name, _)| name == family_name)
-        } else {
-            false
-        }
     }
 
     pub fn face_name(&self, id: fontdb::ID) -> String {

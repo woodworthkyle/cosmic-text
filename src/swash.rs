@@ -4,16 +4,19 @@
 use alloc::collections::BTreeMap as Map;
 #[cfg(not(feature = "std"))]
 use alloc::vec::Vec;
+use peniko::Color;
 #[cfg(feature = "std")]
 use std::collections::HashMap as Map;
 use swash::scale::{image::Content, ScaleContext};
 use swash::scale::{Render, Source, StrikeWith};
 use swash::zeno::{Format, Vector};
 
-use crate::{CacheKey, Color, FontSystem, FONT_SYSTEM};
+use crate::{CacheKey, FontSystem, FONT_SYSTEM};
 
 pub use swash::scale::image::{Content as SwashContent, Image as SwashImage};
 pub use swash::zeno::{Command, Placement};
+
+const IS_MACOS: bool = cfg!(target_os = "macos");
 
 fn swash_image(context: &mut ScaleContext, cache_key: CacheKey) -> Option<SwashImage> {
     let font = match FONT_SYSTEM.get_font(cache_key.font_id) {
@@ -28,13 +31,14 @@ fn swash_image(context: &mut ScaleContext, cache_key: CacheKey) -> Option<SwashI
     let mut scaler = context
         .builder(font.as_swash())
         .size(cache_key.font_size as f32)
-        .hint(true)
+        .hint(!IS_MACOS)
         .build();
 
     // Compute the fractional offset-- you'll likely want to quantize this
     // in a real renderer
     let offset = Vector::new(cache_key.x_bin.as_float(), cache_key.y_bin.as_float());
 
+    let embolden = if IS_MACOS { 0.2 } else { 0. };
     // Select our source order
     Render::new(&[
         // Color outline with the first palette
@@ -48,6 +52,7 @@ fn swash_image(context: &mut ScaleContext, cache_key: CacheKey) -> Option<SwashI
     .format(Format::Alpha)
     // Apply the fractional offset
     .offset(offset)
+    .embolden(embolden)
     // Render the image
     .render(&mut scaler, cache_key.glyph_id)
 }
@@ -142,11 +147,7 @@ impl SwashCache {
                     for off_y in 0..image.placement.height as i32 {
                         for off_x in 0..image.placement.width as i32 {
                             //TODO: blend base alpha?
-                            f(
-                                x + off_x,
-                                y + off_y,
-                                Color(((image.data[i] as u32) << 24) | base.0 & 0xFF_FF_FF),
-                            );
+                            f(x + off_x, y + off_y, Color::BLACK);
                             i += 1;
                         }
                     }
@@ -159,7 +160,7 @@ impl SwashCache {
                             f(
                                 x + off_x,
                                 y + off_y,
-                                Color::rgba(
+                                Color::rgba8(
                                     image.data[i],
                                     image.data[i + 1],
                                     image.data[i + 2],

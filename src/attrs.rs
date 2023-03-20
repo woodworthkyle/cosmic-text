@@ -6,51 +6,10 @@ use alloc::{
     vec::Vec,
 };
 use core::ops::Range;
+use peniko::Color;
 
 pub use fontdb::{Family, Stretch, Style, Weight};
 use rangemap::RangeMap;
-
-/// Text color
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub struct Color(pub u32);
-
-impl Color {
-    /// Create new color with red, green, and blue components
-    #[inline]
-    pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
-        Self::rgba(r, g, b, 0xFF)
-    }
-
-    /// Create new color with red, green, blue, and alpha components
-    #[inline]
-    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
-        Self(((a as u32) << 24) | ((r as u32) << 16) | ((g as u32) << 8) | (b as u32))
-    }
-
-    /// Get the red component
-    #[inline]
-    pub fn r(&self) -> u8 {
-        ((self.0 & 0x00_FF_00_00) >> 16) as u8
-    }
-
-    /// Get the green component
-    #[inline]
-    pub fn g(&self) -> u8 {
-        ((self.0 & 0x00_00_FF_00) >> 8) as u8
-    }
-
-    /// Get the blue component
-    #[inline]
-    pub fn b(&self) -> u8 {
-        (self.0 & 0x00_00_00_FF) as u8
-    }
-
-    /// Get the alpha component
-    #[inline]
-    pub fn a(&self) -> u8 {
-        ((self.0 & 0xFF_00_00_00) >> 24) as u8
-    }
-}
 
 /// An owned version of [`Family`]
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
@@ -90,30 +49,17 @@ impl FamilyOwned {
 /// Font attributes
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FontAttrs {
-    pub family: FamilyOwned,
+    pub family: Vec<FamilyOwned>,
     pub monospaced: bool,
     pub stretch: Stretch,
     pub style: Style,
     pub weight: Weight,
 }
 
-impl<'a> From<Attrs<'a>> for FontAttrs {
-    fn from(value: Attrs) -> Self {
-        FontAttrs {
-            family: FamilyOwned::new(value.family),
-            style: value.style,
-            weight: value.weight,
-            stretch: value.stretch,
-            monospaced: value.monospaced,
-        }
-    }
-}
-
 /// Text attributes
 #[derive(Clone, Copy, Debug)]
 pub struct Attrs<'a> {
-    //TODO: should this be an option?
-    pub color_opt: Option<Color>,
+    pub color: Color,
     pub family: Family<'a>,
     pub monospaced: bool,
     pub stretch: Stretch,
@@ -126,7 +72,7 @@ pub struct Attrs<'a> {
 
 impl<'a> PartialEq for Attrs<'a> {
     fn eq(&self, other: &Self) -> bool {
-        self.color_opt == other.color_opt
+        self.color == other.color
             && self.family == other.family
             && self.monospaced == other.monospaced
             && self.stretch == other.stretch
@@ -146,13 +92,13 @@ impl<'a> Attrs<'a> {
     /// This defaults to a regular Sans-Serif font.
     pub fn new() -> Self {
         Self {
-            color_opt: None,
+            color: Color::BLACK,
             family: Family::SansSerif,
             monospaced: false,
             stretch: Stretch::Normal,
             style: Style::Normal,
             weight: Weight::NORMAL,
-            font_size: 14.0,
+            font_size: 16.0,
             line_height: 1.0,
             metadata: 0,
         }
@@ -160,7 +106,7 @@ impl<'a> Attrs<'a> {
 
     /// Set [Color]
     pub fn color(mut self, color: Color) -> Self {
-        self.color_opt = Some(color);
+        self.color = color;
         self
     }
 
@@ -194,9 +140,21 @@ impl<'a> Attrs<'a> {
         self
     }
 
+    /// Set Weight from u16 value
+    pub fn raw_weight(mut self, weight: u16) -> Self {
+        self.weight = Weight(weight);
+        self
+    }
+
     /// Set font size
     pub fn font_size(mut self, font_size: f32) -> Self {
         self.font_size = font_size;
+        self
+    }
+
+    /// Set line height
+    pub fn line_height(mut self, line_height: f32) -> Self {
+        self.line_height = line_height;
         self
     }
 
@@ -229,8 +187,7 @@ impl<'a> Attrs<'a> {
 /// An owned version of [`Attrs`]
 #[derive(Clone, Debug)]
 pub struct AttrsOwned {
-    //TODO: should this be an option?
-    pub color_opt: Option<Color>,
+    pub color: Color,
     pub family_owned: FamilyOwned,
     pub monospaced: bool,
     pub stretch: Stretch,
@@ -243,7 +200,7 @@ pub struct AttrsOwned {
 
 impl PartialEq for AttrsOwned {
     fn eq(&self, other: &Self) -> bool {
-        self.color_opt == other.color_opt
+        self.color == other.color
             && self.family_owned == other.family_owned
             && self.monospaced == other.monospaced
             && self.stretch == other.stretch
@@ -260,7 +217,7 @@ impl Eq for AttrsOwned {}
 impl AttrsOwned {
     pub fn new(attrs: Attrs) -> Self {
         Self {
-            color_opt: attrs.color_opt,
+            color: attrs.color,
             family_owned: FamilyOwned::new(attrs.family),
             monospaced: attrs.monospaced,
             stretch: attrs.stretch,
@@ -268,13 +225,13 @@ impl AttrsOwned {
             weight: attrs.weight,
             metadata: attrs.metadata,
             font_size: attrs.font_size,
-            line_height: 1.0,
+            line_height: attrs.line_height,
         }
     }
 
     pub fn as_attrs(&self) -> Attrs {
         Attrs {
-            color_opt: self.color_opt,
+            color: self.color,
             family: self.family_owned.as_family(),
             monospaced: self.monospaced,
             stretch: self.stretch,
@@ -289,7 +246,7 @@ impl AttrsOwned {
 
 /// List of text attributes to apply to a line
 //TODO: have this clean up the spans when changes are made
-#[derive(PartialEq)]
+#[derive(PartialEq, Clone)]
 pub struct AttrsList {
     defaults: AttrsOwned,
     spans: RangeMap<usize, AttrsOwned>,

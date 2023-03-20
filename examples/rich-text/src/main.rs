@@ -1,10 +1,11 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use cosmic_text::{
-    Action, Attrs, AttrsList, Color, Edit, Editor, Family, Style, SwashCache, TextLayout,
-    TextLayoutLine, Weight, FONT_SYSTEM,
+    Action, Attrs, AttrsList, Edit, Editor, Family, Style, SwashCache, TextLayout, TextLayoutLine,
+    Weight, FONT_SYSTEM,
 };
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
+use peniko::Color;
 use std::{
     process, thread,
     time::{Duration, Instant},
@@ -103,31 +104,31 @@ fn main() {
             ),
         ],
         &[
-            ("R", attrs.color(Color::rgb(0xFF, 0x00, 0x00))),
-            ("A", attrs.color(Color::rgb(0xFF, 0x7F, 0x00))),
-            ("I", attrs.color(Color::rgb(0xFF, 0xFF, 0x00))),
-            ("N", attrs.color(Color::rgb(0x00, 0xFF, 0x00))),
-            ("B", attrs.color(Color::rgb(0x00, 0x00, 0xFF))),
-            ("O", attrs.color(Color::rgb(0x4B, 0x00, 0x82))),
-            ("W ", attrs.color(Color::rgb(0x94, 0x00, 0xD3))),
-            ("Red ", attrs.color(Color::rgb(0xFF, 0x00, 0x00))),
-            ("Orange ", attrs.color(Color::rgb(0xFF, 0x7F, 0x00))),
-            ("Yellow ", attrs.color(Color::rgb(0xFF, 0xFF, 0x00))),
-            ("Green ", attrs.color(Color::rgb(0x00, 0xFF, 0x00))),
-            ("Blue ", attrs.color(Color::rgb(0x00, 0x00, 0xFF))),
-            ("Indigo ", attrs.color(Color::rgb(0x4B, 0x00, 0x82))),
-            ("Violet ", attrs.color(Color::rgb(0x94, 0x00, 0xD3))),
-            ("U", attrs.color(Color::rgb(0x94, 0x00, 0xD3))),
-            ("N", attrs.color(Color::rgb(0x4B, 0x00, 0x82))),
-            ("I", attrs.color(Color::rgb(0x00, 0x00, 0xFF))),
-            ("C", attrs.color(Color::rgb(0x00, 0xFF, 0x00))),
-            ("O", attrs.color(Color::rgb(0xFF, 0xFF, 0x00))),
-            ("R", attrs.color(Color::rgb(0xFF, 0x7F, 0x00))),
-            ("N", attrs.color(Color::rgb(0xFF, 0x00, 0x00))),
+            ("R", attrs.color(Color::rgb8(0xFF, 0x00, 0x00))),
+            ("A", attrs.color(Color::rgb8(0xFF, 0x7F, 0x00))),
+            ("I", attrs.color(Color::rgb8(0xFF, 0xFF, 0x00))),
+            ("N", attrs.color(Color::rgb8(0x00, 0xFF, 0x00))),
+            ("B", attrs.color(Color::rgb8(0x00, 0x00, 0xFF))),
+            ("O", attrs.color(Color::rgb8(0x4B, 0x00, 0x82))),
+            ("W ", attrs.color(Color::rgb8(0x94, 0x00, 0xD3))),
+            ("Red ", attrs.color(Color::rgb8(0xFF, 0x00, 0x00))),
+            ("Orange ", attrs.color(Color::rgb8(0xFF, 0x7F, 0x00))),
+            ("Yellow ", attrs.color(Color::rgb8(0xFF, 0xFF, 0x00))),
+            ("Green ", attrs.color(Color::rgb8(0x00, 0xFF, 0x00))),
+            ("Blue ", attrs.color(Color::rgb8(0x00, 0x00, 0xFF))),
+            ("Indigo ", attrs.color(Color::rgb8(0x4B, 0x00, 0x82))),
+            ("Violet ", attrs.color(Color::rgb8(0x94, 0x00, 0xD3))),
+            ("U", attrs.color(Color::rgb8(0x94, 0x00, 0xD3))),
+            ("N", attrs.color(Color::rgb8(0x4B, 0x00, 0x82))),
+            ("I", attrs.color(Color::rgb8(0x00, 0x00, 0xFF))),
+            ("C", attrs.color(Color::rgb8(0x00, 0xFF, 0x00))),
+            ("O", attrs.color(Color::rgb8(0xFF, 0xFF, 0x00))),
+            ("R", attrs.color(Color::rgb8(0xFF, 0x7F, 0x00))),
+            ("N", attrs.color(Color::rgb8(0xFF, 0x00, 0x00))),
         ],
         &[(
             "生活,삶,जिंदगी 😀 FPS",
-            attrs.color(Color::rgb(0xFF, 0x00, 0x00)),
+            attrs.color(Color::rgb8(0xFF, 0x00, 0x00)),
         )],
     ];
     for &line in lines {
@@ -145,6 +146,30 @@ fn main() {
             .push(TextLayoutLine::new(line_text, attrs_list));
     }
 
+    let mut attrs = AttrsList::new(Attrs::new());
+    attrs.add_span(
+        0..17,
+        Attrs::new()
+            .color(Color::rgb8(0x00, 0x00, 0xFF))
+            .line_height(2.0),
+    );
+    attrs.add_span(
+        19..34,
+        Attrs::new()
+            .weight(Weight::BOLD)
+            .color(Color::rgb8(0xFF, 0x00, 0x00)),
+    );
+    attrs.add_span(
+        29..34,
+        Attrs::new()
+            .weight(Weight::BOLD)
+            .color(Color::rgb8(0xFF, 0x00, 0x00))
+            .font_size(20.0),
+    );
+    editor
+        .buffer_mut()
+        .set_text("Sans-Serif Normal\r\nSans-SerifBold", attrs);
+
     let mut swash_cache = SwashCache::new();
 
     //TODO: make window not async?
@@ -153,7 +178,7 @@ fn main() {
     let mut mouse_left = false;
     loop {
         let bg_color = orbclient::Color::rgb(0x34, 0x34, 0x34);
-        let font_color = Color::rgb(0xFF, 0xFF, 0xFF);
+        let font_color = Color::rgb8(0xFF, 0xFF, 0xFF);
 
         editor.shape_as_needed();
         if editor.buffer().redraw() {
@@ -162,7 +187,15 @@ fn main() {
             window.set(bg_color);
 
             editor.draw(&mut swash_cache, font_color, |x, y, w, h, color| {
-                window.rect(x, y, w, h, orbclient::Color { data: color.0 });
+                window.rect(
+                    x,
+                    y,
+                    w,
+                    h,
+                    orbclient::Color {
+                        data: color.to_premul_u32(),
+                    },
+                );
             });
 
             window.sync();
