@@ -11,6 +11,8 @@ use peniko::Color;
 pub use fontdb::{Family, Stretch, Style, Weight};
 use rangemap::RangeMap;
 
+static DEFAULT_FAMILY: [FamilyOwned; 1] = [FamilyOwned::SansSerif];
+
 /// An owned version of [`Family`]
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub enum FamilyOwned {
@@ -44,6 +46,14 @@ impl FamilyOwned {
             FamilyOwned::Monospace => Family::Monospace,
         }
     }
+
+    pub fn parse_list<'a>(s: &'a str) -> impl Iterator<Item = FamilyOwned> + 'a + Clone {
+        ParseList {
+            source: s.as_bytes(),
+            len: s.len(),
+            pos: 0,
+        }
+    }
 }
 
 /// Font attributes
@@ -60,7 +70,7 @@ pub struct FontAttrs {
 #[derive(Clone, Copy, Debug)]
 pub struct Attrs<'a> {
     pub color: Color,
-    pub family: Family<'a>,
+    pub family: &'a [FamilyOwned],
     pub monospaced: bool,
     pub stretch: Stretch,
     pub style: Style,
@@ -93,7 +103,7 @@ impl<'a> Attrs<'a> {
     pub fn new() -> Self {
         Self {
             color: Color::BLACK,
-            family: Family::SansSerif,
+            family: &DEFAULT_FAMILY,
             monospaced: false,
             stretch: Stretch::Normal,
             style: Style::Normal,
@@ -111,7 +121,7 @@ impl<'a> Attrs<'a> {
     }
 
     /// Set [Family]
-    pub fn family(mut self, family: Family<'a>) -> Self {
+    pub fn family(mut self, family: &'a [FamilyOwned]) -> Self {
         self.family = family;
         self
     }
@@ -188,7 +198,7 @@ impl<'a> Attrs<'a> {
 #[derive(Clone, Debug)]
 pub struct AttrsOwned {
     pub color: Color,
-    pub family_owned: FamilyOwned,
+    pub family_owned: Vec<FamilyOwned>,
     pub monospaced: bool,
     pub stretch: Stretch,
     pub style: Style,
@@ -218,7 +228,7 @@ impl AttrsOwned {
     pub fn new(attrs: Attrs) -> Self {
         Self {
             color: attrs.color,
-            family_owned: FamilyOwned::new(attrs.family),
+            family_owned: attrs.family.to_vec(),
             monospaced: attrs.monospaced,
             stretch: attrs.stretch,
             style: attrs.style,
@@ -232,7 +242,7 @@ impl AttrsOwned {
     pub fn as_attrs(&self) -> Attrs {
         Attrs {
             color: self.color,
-            family: self.family_owned.as_family(),
+            family: &self.family_owned,
             monospaced: self.monospaced,
             stretch: self.stretch,
             style: self.style,
@@ -334,4 +344,82 @@ impl AttrsList {
 
 pub fn nearly_eq(x: f32, y: f32) -> bool {
     (x - y).abs() < f32::EPSILON
+}
+
+#[derive(Clone)]
+struct ParseList<'a> {
+    source: &'a [u8],
+    len: usize,
+    pos: usize,
+}
+
+impl<'a> Iterator for ParseList<'a> {
+    type Item = FamilyOwned;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let mut quote = None;
+        let mut pos = self.pos;
+        while pos < self.len && {
+            let ch = self.source[pos];
+            ch.is_ascii_whitespace() || ch == b','
+        } {
+            pos += 1;
+        }
+        self.pos = pos;
+        if pos >= self.len {
+            return None;
+        }
+        let first = self.source[pos];
+        let mut start = pos;
+        match first {
+            b'"' | b'\'' => {
+                quote = Some(first);
+                pos += 1;
+                start += 1;
+            }
+            _ => {}
+        }
+        if let Some(quote) = quote {
+            while pos < self.len {
+                if self.source[pos] == quote {
+                    self.pos = pos + 1;
+                    return Some(FamilyOwned::Name(
+                        core::str::from_utf8(self.source.get(start..pos)?)
+                            .ok()?
+                            .trim()
+                            .to_string(),
+                    ));
+                }
+                pos += 1;
+            }
+            self.pos = pos;
+            return Some(FamilyOwned::Name(
+                core::str::from_utf8(self.source.get(start..pos)?)
+                    .ok()?
+                    .trim()
+                    .to_string(),
+            ));
+        }
+        let mut end = start;
+        while pos < self.len {
+            if self.source[pos] == b',' {
+                pos += 1;
+                break;
+            }
+            pos += 1;
+            end += 1;
+        }
+        self.pos = pos;
+        let name = core::str::from_utf8(self.source.get(start..end)?)
+            .ok()?
+            .trim();
+        Some(match name {
+            "serif" => FamilyOwned::Serif,
+            "sans-serif" => FamilyOwned::SansSerif,
+            "monospace" => FamilyOwned::Monospace,
+            "cursive" => FamilyOwned::Cursive,
+            "fantasy" => FamilyOwned::Fantasy,
+            _ => FamilyOwned::Name(name.to_string()),
+        })
+    }
 }

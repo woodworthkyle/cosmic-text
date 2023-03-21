@@ -6,7 +6,7 @@ use alloc::vec::Vec;
 use fontdb::Family;
 use unicode_script::Script;
 
-use crate::{Attrs, Font, FONT_SYSTEM};
+use crate::{Attrs, FamilyOwned, Font, FONT_SYSTEM};
 
 use self::platform::*;
 
@@ -27,7 +27,7 @@ mod platform;
 mod platform;
 
 pub struct FontFallbackIter<'a> {
-    default_families: &'a [&'a Family<'a>],
+    default_families: &'a [FamilyOwned],
     attrs: Attrs<'a>,
     default_i: usize,
     scripts: Vec<Script>,
@@ -40,7 +40,7 @@ pub struct FontFallbackIter<'a> {
 impl<'a> FontFallbackIter<'a> {
     pub fn new(
         attrs: Attrs<'a>,
-        default_families: &'a [&'a Family<'a>],
+        default_families: &'a [FamilyOwned],
         scripts: Vec<Script>,
     ) -> Self {
         Self {
@@ -86,13 +86,9 @@ impl<'a> FontFallbackIter<'a> {
 impl<'a> Iterator for FontFallbackIter<'a> {
     type Item = Arc<Font>;
     fn next(&mut self) -> Option<Self::Item> {
-        while self.default_i < self.default_families.len() {
-            self.default_i += 1;
-            let default_family = self.default_families[self.default_i - 1];
-            if let Some(id) = FONT_SYSTEM.query(*default_family, self.attrs) {
-                if let Some(font) = FONT_SYSTEM.get_font(id) {
-                    return Some(font);
-                }
+        if let Some(id) = FONT_SYSTEM.query(self.default_families, self.attrs) {
+            if let Some(font) = FONT_SYSTEM.get_font(id) {
+                return Some(font);
             }
         }
 
@@ -104,7 +100,9 @@ impl<'a> Iterator for FontFallbackIter<'a> {
                 let script_family = script_families[self.script_i.1];
                 self.script_i.1 += 1;
 
-                if let Some(id) = FONT_SYSTEM.query(Family::Name(script_family), self.attrs) {
+                if let Some(id) =
+                    FONT_SYSTEM.query(&[FamilyOwned::Name(script_family.to_string())], self.attrs)
+                {
                     if let Some(font) = FONT_SYSTEM.get_font(id) {
                         return Some(font);
                     }
@@ -126,7 +124,9 @@ impl<'a> Iterator for FontFallbackIter<'a> {
             let common_family = common_families[self.common_i];
             self.common_i += 1;
 
-            if let Some(id) = FONT_SYSTEM.query(Family::Name(common_family), self.attrs) {
+            if let Some(id) =
+                FONT_SYSTEM.query(&[FamilyOwned::Name(common_family.to_string())], self.attrs)
+            {
                 if let Some(font) = FONT_SYSTEM.get_font(id) {
                     return Some(font);
                 }
@@ -138,7 +138,9 @@ impl<'a> Iterator for FontFallbackIter<'a> {
         //TODO: do not evaluate fonts more than once!
         let forbidden_families = forbidden_fallback();
         for family in forbidden_families.iter() {
-            if let Some(id) = FONT_SYSTEM.query(Family::Name(family), self.attrs) {
+            if let Some(id) =
+                FONT_SYSTEM.query(&[FamilyOwned::Name(family.to_string())], self.attrs)
+            {
                 if let Some(font) = FONT_SYSTEM.get_font(id) {
                     return Some(font);
                 }

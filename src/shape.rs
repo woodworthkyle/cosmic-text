@@ -168,8 +168,8 @@ fn shape_run(
 
     let attrs = attrs_list.get_span(start_run);
 
-    let default_families = [&attrs.family];
-    let mut font_iter = FontFallbackIter::new(attrs, &default_families, scripts);
+    let default_families = attrs.family;
+    let mut font_iter = FontFallbackIter::new(attrs, default_families, scripts);
 
     let font = font_iter.next().expect("no default font found");
 

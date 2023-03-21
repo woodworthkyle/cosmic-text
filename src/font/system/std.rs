@@ -105,9 +105,9 @@ impl FontSystem {
             .clone()
     }
 
-    pub fn query(&self, family: Family, attrs: Attrs) -> Option<fontdb::ID> {
+    pub fn query(&self, family: &[FamilyOwned], attrs: Attrs) -> Option<fontdb::ID> {
         let font_attrs = FontAttrs {
-            family: vec![FamilyOwned::new(family)],
+            family: family.to_vec(),
             monospaced: attrs.monospaced,
             stretch: attrs.stretch,
             style: attrs.style,
@@ -122,8 +122,9 @@ impl FontSystem {
             .write()
             .entry(font_attrs)
             .or_insert_with(|| {
+                let family: Vec<Family> = family.iter().map(|f| f.as_family()).collect();
                 self.db.read().query(&Query {
-                    families: &[family],
+                    families: &family,
                     style: attrs.style,
                     weight: attrs.weight,
                     stretch: attrs.stretch,

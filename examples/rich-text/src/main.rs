@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 
 use cosmic_text::{
-    Action, Attrs, AttrsList, Edit, Editor, Family, Style, SwashCache, TextLayout, TextLayoutLine,
-    Weight, FONT_SYSTEM,
+    Action, Attrs, AttrsList, Edit, Editor, Family, FamilyOwned, Style, SwashCache, TextLayout,
+    TextLayoutLine, Weight, FONT_SYSTEM,
 };
 use orbclient::{EventOption, Renderer, Window, WindowFlag};
 use peniko::Color;
@@ -42,9 +42,10 @@ fn main() {
         .set_size(window.width() as f32, window.height() as f32);
 
     let attrs = Attrs::new();
-    let serif_attrs = attrs.family(Family::Serif);
-    let mono_attrs = attrs.monospaced(true).family(Family::Monospace);
-    let comic_attrs = attrs.family(Family::Name("Comic Neue"));
+    let serif_attrs = attrs.family(&[FamilyOwned::Serif]);
+    let mono_attrs = attrs.monospaced(true).family(&[FamilyOwned::Monospace]);
+    let family = [FamilyOwned::Name("Comic Neue".to_string())];
+    let comic_attrs = attrs.family(&family);
 
     editor.buffer_mut().lines.clear();
 
