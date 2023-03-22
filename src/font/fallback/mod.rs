@@ -86,9 +86,13 @@ impl<'a> FontFallbackIter<'a> {
 impl<'a> Iterator for FontFallbackIter<'a> {
     type Item = Arc<Font>;
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(id) = FONT_SYSTEM.query(self.default_families, self.attrs) {
-            if let Some(font) = FONT_SYSTEM.get_font(id) {
-                return Some(font);
+        while self.default_i < self.default_families.len() {
+            let default_family = &self.default_families[self.default_i];
+            self.default_i += 1;
+            if let Some(id) = FONT_SYSTEM.query(&[default_family.clone()], self.attrs) {
+                if let Some(font) = FONT_SYSTEM.get_font(id) {
+                    return Some(font);
+                }
             }
         }
 
@@ -137,10 +141,14 @@ impl<'a> Iterator for FontFallbackIter<'a> {
         //TODO: do we need to do this?
         //TODO: do not evaluate fonts more than once!
         let forbidden_families = forbidden_fallback();
-        for family in forbidden_families.iter() {
-            if let Some(id) =
-                FONT_SYSTEM.query(&[FamilyOwned::Name(family.to_string())], self.attrs)
-            {
+        while self.other_i < forbidden_families.len() {
+            let forbidden_family = forbidden_families[self.other_i];
+            self.other_i += 1;
+
+            if let Some(id) = FONT_SYSTEM.query(
+                &[FamilyOwned::Name(forbidden_family.to_string())],
+                self.attrs,
+            ) {
                 if let Some(font) = FONT_SYSTEM.get_font(id) {
                     return Some(font);
                 }
