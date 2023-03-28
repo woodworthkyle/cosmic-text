@@ -75,22 +75,18 @@ fn shape_fallback(
     for (info, pos) in glyph_infos.iter().zip(glyph_positions.iter()) {
         let start_glyph = start_run + info.cluster as usize;
         let attrs = attrs_list.get_span(start_glyph);
-        let x_advance = (pos.x_advance * attrs.font_size as i32) as f32 / font_scale;
-        let y_advance = (pos.y_advance * attrs.font_size as i32) as f32 / font_scale;
-        let x_offset = (pos.x_offset * attrs.font_size as i32) as f32 / font_scale;
-        let y_offset = (pos.y_offset * attrs.font_size as i32) as f32 / font_scale;
+        let x_advance = pos.x_advance as f32 * attrs.font_size / font_scale;
+        let y_advance = pos.y_advance as f32 * attrs.font_size / font_scale;
+        let x_offset = pos.x_offset as f32 * attrs.font_size / font_scale;
+        let y_offset = pos.y_offset as f32 * attrs.font_size / font_scale;
         let ascent = metrics.ascent * attrs.font_size / font_scale;
         let descent = metrics.descent * attrs.font_size / font_scale;
-        let height = ascent + descent;
+        let line_ascent = ascent * attrs.line_height.max(1.0);
+        let line_descent = descent * attrs.line_height.max(1.0);
         let cap_height = metrics
             .cap_height
             .map(|h| h * attrs.font_size / font_scale)
-            .unwrap_or(height);
-        let line_height = match attrs.line_height {
-            h if h == 0.0 => height,
-            h if h > 8.0 => h,
-            h => h * height,
-        };
+            .unwrap_or(0.0);
 
         if info.glyph_id == 0 {
             missing.push(start_glyph);
@@ -105,8 +101,9 @@ fn shape_fallback(
             y_offset,
             ascent,
             descent,
+            line_ascent,
+            line_descent,
             font_size: attrs.font_size,
-            line_height,
             cap_height,
             font_id: font.id(),
             glyph_id: info.glyph_id.try_into().expect("failed to cast glyph ID"),
@@ -267,10 +264,11 @@ pub struct ShapeGlyph {
     pub x_offset: f32,
     pub y_offset: f32,
     pub font_size: f32,
-    pub line_height: f32,
     pub cap_height: f32,
     pub ascent: f32,
     pub descent: f32,
+    pub line_ascent: f32,
+    pub line_descent: f32,
     pub font_id: fontdb::ID,
     pub glyph_id: u16,
     pub color: Color,
@@ -683,10 +681,11 @@ impl ShapeLine {
         let start_x = if self.rtl { line_width } else { 0.0 };
         let mut x;
         let mut y;
-        let mut line_height = 0.0f32;
         let mut cap_height = 0.0f32;
-        let mut ascent = 0.0f32;
-        let mut descent = 0.0f32;
+        let mut glyph_ascent = 0.0f32;
+        let mut glyph_descent = 0.0f32;
+        let mut line_ascent = 0.0f32;
+        let mut line_descent = 0.0f32;
 
         // This would keep the maximum number of spans that would fit on a visual line
         // If one span is too large, this variable will hold the range of words inside that span
@@ -957,10 +956,11 @@ impl ShapeLine {
                                     glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                 }
                                 y += y_advance;
-                                line_height = line_height.max(glyph.line_height);
                                 cap_height = cap_height.max(glyph.cap_height);
-                                ascent = ascent.max(glyph.ascent);
-                                descent = descent.max(glyph.descent);
+                                line_ascent = line_ascent.max(glyph.line_ascent);
+                                line_descent = line_descent.max(glyph.line_descent);
+                                glyph_ascent = glyph_ascent.max(glyph.ascent);
+                                glyph_descent = glyph_descent.max(glyph.descent);
                             }
                         } else {
                             for i in *starting_word..*ending_word + 1 {
@@ -990,10 +990,11 @@ impl ShapeLine {
                                             glyphs.push(glyph.layout(x, y, x_advance, span.level));
                                         }
                                         y += y_advance;
-                                        line_height = line_height.max(glyph.line_height);
                                         cap_height = cap_height.max(glyph.cap_height);
-                                        ascent = ascent.max(glyph.ascent);
-                                        descent = descent.max(glyph.descent);
+                                        line_ascent = line_ascent.max(glyph.line_ascent);
+                                        line_descent = line_descent.max(glyph.line_descent);
+                                        glyph_ascent = glyph_ascent.max(glyph.ascent);
+                                        glyph_descent = glyph_descent.max(glyph.descent);
                                     }
                                 }
                             }
@@ -1034,10 +1035,11 @@ impl ShapeLine {
                                 }
                                 x += x_advance;
                                 y += y_advance;
-                                line_height = line_height.max(glyph.line_height);
                                 cap_height = cap_height.max(glyph.cap_height);
-                                ascent = ascent.max(glyph.ascent);
-                                descent = descent.max(glyph.descent);
+                                line_ascent = line_ascent.max(glyph.line_ascent);
+                                line_descent = line_descent.max(glyph.line_descent);
+                                glyph_ascent = glyph_ascent.max(glyph.ascent);
+                                glyph_descent = glyph_descent.max(glyph.descent);
                             }
                         } else {
                             for i in *starting_word..*ending_word + 1 {
@@ -1067,10 +1069,11 @@ impl ShapeLine {
                                         }
                                         x += x_advance;
                                         y += y_advance;
-                                        line_height = line_height.max(glyph.line_height);
                                         cap_height = cap_height.max(glyph.cap_height);
-                                        ascent = ascent.max(glyph.ascent);
-                                        descent = descent.max(glyph.descent);
+                                        line_ascent = line_ascent.max(glyph.line_ascent);
+                                        line_descent = line_descent.max(glyph.line_descent);
+                                        glyph_ascent = glyph_ascent.max(glyph.ascent);
+                                        glyph_descent = glyph_descent.max(glyph.descent);
                                     }
                                 }
                             }
@@ -1083,10 +1086,11 @@ impl ShapeLine {
             layout_lines.push(LayoutLine {
                 w: if self.rtl { start_x - x } else { x },
                 glyphs: glyphs_swap,
-                line_height,
                 cap_height,
-                ascent,
-                descent,
+                glyph_ascent,
+                glyph_descent,
+                line_ascent,
+                line_descent,
             });
             push_line = false;
         }
@@ -1095,10 +1099,11 @@ impl ShapeLine {
             layout_lines.push(LayoutLine {
                 w: 0.0,
                 glyphs: Default::default(),
-                line_height,
                 cap_height,
-                ascent,
-                descent,
+                glyph_ascent,
+                glyph_descent,
+                line_ascent,
+                line_descent,
             });
         }
 

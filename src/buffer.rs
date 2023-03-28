@@ -127,8 +127,6 @@ pub struct LayoutRun<'a> {
     pub line_w: f32,
     /// height of this line
     pub line_height: f32,
-    pub ascent: f32,
-    pub descent: f32,
 }
 
 impl<'a> LayoutRun<'a> {
@@ -250,11 +248,14 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                     continue;
                 }
 
-                let offset = ((layout_line.line_height - layout_line.cap_height) / 2.0).max(0.0);
-                self.line_y += layout_line.line_height;
+                let line_height = layout_line.line_ascent + layout_line.line_descent;
+                self.line_y += line_height;
                 if self.line_y > self.buffer.height {
                     return None;
                 }
+
+                let offset =
+                    (line_height - (layout_line.glyph_ascent + layout_line.glyph_descent)) / 2.0;
 
                 self.remaining_len -= 1;
                 return Some(LayoutRun {
@@ -262,11 +263,9 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                     text: line.text(),
                     rtl: shape.rtl,
                     glyphs: &layout_line.glyphs,
-                    line_y: self.line_y - offset,
+                    line_y: self.line_y - offset - layout_line.glyph_descent,
                     line_w: layout_line.w,
-                    line_height: layout_line.line_height,
-                    ascent: layout_line.ascent,
-                    descent: layout_line.descent,
+                    line_height,
                 });
             }
             self.line_i += 1;
