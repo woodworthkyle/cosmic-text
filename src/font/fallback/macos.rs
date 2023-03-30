@@ -5,6 +5,7 @@ use unicode_script::Script;
 // Fallbacks to use after any script specific fallbacks
 pub fn common_fallback() -> &'static [&'static str] {
     &[
+        "Helvetica Neue",
         ".SF NS",
         "Menlo",
         "Apple Color Emoji",
