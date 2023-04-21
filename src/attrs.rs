@@ -56,6 +56,12 @@ impl FamilyOwned {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum LineHeightValue {
+    Normal(f32),
+    Px(f32),
+}
+
 /// Font attributes
 #[derive(Clone, Debug, Eq, Hash, PartialEq)]
 pub struct FontAttrs {
@@ -76,7 +82,7 @@ pub struct Attrs<'a> {
     pub style: Style,
     pub weight: Weight,
     pub font_size: f32,
-    pub line_height: f32,
+    pub line_height: LineHeightValue,
     pub metadata: usize,
 }
 
@@ -89,8 +95,8 @@ impl<'a> PartialEq for Attrs<'a> {
             && self.style == other.style
             && self.weight == other.weight
             && self.metadata == other.metadata
+            && self.line_height == other.line_height
             && nearly_eq(self.font_size, other.font_size)
-            && nearly_eq(self.line_height, other.line_height)
     }
 }
 
@@ -109,7 +115,7 @@ impl<'a> Attrs<'a> {
             style: Style::Normal,
             weight: Weight::NORMAL,
             font_size: 16.0,
-            line_height: 1.0,
+            line_height: LineHeightValue::Normal(1.0),
             metadata: 0,
         }
     }
@@ -163,7 +169,7 @@ impl<'a> Attrs<'a> {
     }
 
     /// Set line height
-    pub fn line_height(mut self, line_height: f32) -> Self {
+    pub fn line_height(mut self, line_height: LineHeightValue) -> Self {
         self.line_height = line_height;
         self
     }
@@ -205,7 +211,7 @@ pub struct AttrsOwned {
     pub weight: Weight,
     pub metadata: usize,
     pub font_size: f32,
-    pub line_height: f32,
+    pub line_height: LineHeightValue,
 }
 
 impl PartialEq for AttrsOwned {
@@ -218,7 +224,7 @@ impl PartialEq for AttrsOwned {
             && self.weight == other.weight
             && self.metadata == other.metadata
             && nearly_eq(self.font_size, other.font_size)
-            && nearly_eq(self.line_height, other.line_height)
+            && self.line_height == other.line_height
     }
 }
 

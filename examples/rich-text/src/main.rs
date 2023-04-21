@@ -148,12 +148,7 @@ fn main() {
     }
 
     let mut attrs = AttrsList::new(Attrs::new());
-    attrs.add_span(
-        0..17,
-        Attrs::new()
-            .color(Color::rgb8(0x00, 0x00, 0xFF))
-            .line_height(2.0),
-    );
+    attrs.add_span(0..17, Attrs::new().color(Color::rgb8(0x00, 0x00, 0xFF)));
     attrs.add_span(
         19..34,
         Attrs::new()

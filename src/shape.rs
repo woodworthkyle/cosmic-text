@@ -81,8 +81,12 @@ fn shape_fallback(
         let y_offset = pos.y_offset as f32 * attrs.font_size / font_scale;
         let ascent = metrics.ascent * attrs.font_size / font_scale;
         let descent = metrics.descent * attrs.font_size / font_scale;
-        let line_ascent = ascent * attrs.line_height.max(1.0);
-        let line_descent = descent * attrs.line_height.max(1.0);
+        let line_height = match attrs.line_height {
+            crate::LineHeightValue::Normal(v) => v.max(1.0),
+            crate::LineHeightValue::Px(_) => 1.0,
+        };
+        let line_ascent = ascent * line_height;
+        let line_descent = descent * line_height;
         let cap_height = metrics
             .cap_height
             .map(|h| h * attrs.font_size / font_scale)
