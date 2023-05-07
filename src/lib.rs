@@ -120,3 +120,5 @@ mod shape;
 pub use self::swash::*;
 #[cfg(feature = "swash")]
 mod swash;
+
+pub use unicode_segmentation;
