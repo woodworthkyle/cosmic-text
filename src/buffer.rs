@@ -25,6 +25,10 @@ pub struct HitPosition {
     pub line: usize,
     /// Point of the cursor
     pub point: Point,
+    /// ascent of glyph
+    pub glyph_ascent: f64,
+    /// descent of glyph
+    pub glyph_descent: f64,
 }
 
 /// Current cursor location
@@ -127,6 +131,10 @@ pub struct LayoutRun<'a> {
     pub line_w: f32,
     /// height of this line
     pub line_height: f32,
+    /// ascent of glyph
+    pub glyph_ascent: f32,
+    /// descent of glyph
+    pub glyph_descent: f32,
 }
 
 impl<'a> LayoutRun<'a> {
@@ -265,6 +273,8 @@ impl<'b> Iterator for LayoutRunIter<'b> {
                     glyphs: &layout_line.glyphs,
                     line_y: self.line_y - offset - layout_line.glyph_descent,
                     line_w: layout_line.w,
+                    glyph_ascent: layout_line.glyph_ascent,
+                    glyph_descent: layout_line.glyph_descent,
                     line_height,
                 });
             }
@@ -662,31 +672,50 @@ impl TextLayout {
     }
 
     pub fn hit_position(&self, idx: usize) -> HitPosition {
+        let mut last_line = 0;
+        let mut last_end: usize = 0;
+        let mut offset = 0;
+        let mut last_glyph_width = 0.0;
+        let mut last_position = HitPosition {
+            line: 0,
+            point: Point::ZERO,
+            glyph_ascent: 0.0,
+            glyph_descent: 0.0,
+        };
         for (line, run) in self.layout_runs().enumerate() {
+            if line > last_line {
+                last_line = line;
+                offset += last_end + 1;
+            }
             for glyph in run.glyphs {
-                if (glyph.start..glyph.end).contains(&idx) {
-                    return HitPosition {
-                        line,
-                        point: Point::new(glyph.x as f64, run.line_y as f64),
-                    };
+                if glyph.start + offset > idx {
+                    last_position.point.x += last_glyph_width as f64;
+                    return last_position;
+                }
+                last_end = glyph.end;
+                last_glyph_width = glyph.w;
+                last_position = HitPosition {
+                    line,
+                    point: Point::new(glyph.x as f64, run.line_y as f64),
+                    glyph_ascent: run.glyph_ascent as f64,
+                    glyph_descent: run.glyph_descent as f64,
+                };
+                if (glyph.start + offset..glyph.end + offset).contains(&idx) {
+                    return last_position;
                 }
             }
         }
 
         if idx > 0 {
-            if let Some((line, run)) = self.layout_runs().enumerate().last() {
-                if let Some(glyph) = run.glyphs.last() {
-                    return HitPosition {
-                        line,
-                        point: Point::new((glyph.x + glyph.w) as f64, run.line_y as f64),
-                    };
-                }
-            }
+            last_position.point.x += last_glyph_width as f64;
+            return last_position;
         }
 
         HitPosition {
             line: 0,
             point: Point::ZERO,
+            glyph_ascent: 0.0,
+            glyph_descent: 0.0,
         }
     }
 
