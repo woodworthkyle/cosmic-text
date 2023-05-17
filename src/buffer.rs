@@ -18,6 +18,13 @@ pub struct HitPoint {
     pub line: usize,
     /// First-byte-index of glyph at cursor (will insert behind this glyph)
     pub index: usize,
+    /// Whether or not the point was inside the bounds of the layout object.
+    ///
+    /// A click outside the layout object will still resolve to a position in the
+    /// text; for instance a click to the right edge of a line will resolve to the
+    /// end of that line, and a click below the last line will resolve to a
+    /// position in that line.
+    pub is_inside: bool,
 }
 
 pub struct HitPosition {
@@ -586,7 +593,11 @@ impl TextLayout {
     pub fn hit_point(&self, point: Point) -> HitPoint {
         let x = point.x as f32;
         let y = point.y as f32;
-        let mut hit_point = HitPoint { index: 0, line: 0 };
+        let mut hit_point = HitPoint {
+            index: 0,
+            line: 0,
+            is_inside: false,
+        };
 
         let mut runs = self.layout_runs().peekable();
         let mut first_run = true;
@@ -648,6 +659,7 @@ impl TextLayout {
                     Some(glyph) => {
                         // Position at glyph
                         hit_point.index = glyph.start + new_cursor_char;
+                        hit_point.is_inside = true;
                     }
                     None => {
                         if let Some(glyph) = run.glyphs.last() {
