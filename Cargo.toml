@@ -24,7 +24,7 @@ rangemap = "1.2.0"
 parking_lot = "0.12.1"
 once_cell = "1.17.1"
 ttf-parser = "0.18.1"
-stretto = "0.7.2"
+stretto = "0.8.1"
 peniko = { git = "https://github.com/linebender/peniko", rev = "cafdac9a211a0fb2fec5656bd663d1ac770bcc81" }
 
 [dependencies.unicode-bidi]

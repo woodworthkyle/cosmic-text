@@ -9,7 +9,7 @@ use once_cell::sync::Lazy;
 use peniko::Color;
 use rustybuzz::{GlyphBuffer, GlyphInfo, GlyphPosition};
 use std::sync::Arc;
-use stretto::{Cache, ValueRef};
+use stretto::Cache;
 use unicode_script::{Script, UnicodeScript};
 use unicode_segmentation::UnicodeSegmentation;
 
