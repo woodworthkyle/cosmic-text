@@ -683,6 +683,64 @@ impl TextLayout {
         hit_point
     }
 
+    pub fn line_col_position(&self, line: usize, col: usize) -> HitPosition {
+        let mut last_glyph: Option<&LayoutGlyph> = None;
+        let mut last_line = 0;
+        let mut last_line_y = 0.0;
+        let mut last_glyph_ascent = 0.0;
+        let mut last_glyph_descent = 0.0;
+        for (current_line, run) in self.layout_runs().enumerate() {
+            for glyph in run.glyphs {
+                if line == run.line_i {
+                    if glyph.start > col {
+                        return HitPosition {
+                            line: last_line,
+                            point: Point::new(
+                                last_glyph.map(|g| (g.x + g.w) as f64).unwrap_or(0.0),
+                                last_line_y as f64,
+                            ),
+                            glyph_ascent: last_glyph_ascent as f64,
+                            glyph_descent: last_glyph_descent as f64,
+                        };
+                    }
+                    if (glyph.start..glyph.end).contains(&col) {
+                        return HitPosition {
+                            line: current_line,
+                            point: Point::new(glyph.x as f64, run.line_y as f64),
+                            glyph_ascent: run.glyph_ascent as f64,
+                            glyph_descent: run.glyph_descent as f64,
+                        };
+                    }
+                } else if run.line_i > line {
+                    return HitPosition {
+                        line: last_line,
+                        point: Point::new(
+                            last_glyph.map(|g| (g.x + g.w) as f64).unwrap_or(0.0),
+                            last_line_y as f64,
+                        ),
+                        glyph_ascent: last_glyph_ascent as f64,
+                        glyph_descent: last_glyph_descent as f64,
+                    };
+                }
+                last_glyph = Some(glyph);
+            }
+            last_line = current_line;
+            last_line_y = run.line_y;
+            last_glyph_ascent = run.glyph_ascent;
+            last_glyph_descent = run.glyph_descent;
+        }
+
+        HitPosition {
+            line: last_line,
+            point: Point::new(
+                last_glyph.map(|g| (g.x + g.w) as f64).unwrap_or(0.0),
+                last_line_y as f64,
+            ),
+            glyph_ascent: last_glyph_ascent as f64,
+            glyph_descent: last_glyph_descent as f64,
+        }
+    }
+
     pub fn hit_position(&self, idx: usize) -> HitPosition {
         let mut last_line = 0;
         let mut last_end: usize = 0;
@@ -695,8 +753,8 @@ impl TextLayout {
             glyph_descent: 0.0,
         };
         for (line, run) in self.layout_runs().enumerate() {
-            if line > last_line {
-                last_line = line;
+            if run.line_i > last_line {
+                last_line = run.line_i;
                 offset += last_end + 1;
             }
             for glyph in run.glyphs {
