@@ -337,6 +337,7 @@ pub struct TextLayout {
     /// True if a redraw is requires. Set to false after processing
     redraw: bool,
     wrap: Wrap,
+    tab_width: usize,
 }
 
 impl TextLayout {
@@ -353,6 +354,7 @@ impl TextLayout {
             scroll: 0,
             redraw: false,
             wrap: Wrap::Word,
+            tab_width: 8,
         };
         buffer.set_text("", AttrsList::new(Attrs::new()));
         buffer
@@ -566,6 +568,7 @@ impl TextLayout {
                 line.to_string(),
                 attrs.clone(),
                 start_index,
+                self.tab_width,
             ));
             attrs = new_attrs;
 
@@ -574,12 +577,16 @@ impl TextLayout {
         // Make sure there is always one line
         if self.lines.is_empty() {
             self.lines
-                .push(TextLayoutLine::new(String::new(), attrs, 0));
+                .push(TextLayoutLine::new(String::new(), attrs, 0, self.tab_width));
         }
 
         self.scroll = 0;
 
         self.shape_until_scroll();
+    }
+
+    pub fn set_tab_width(&mut self, tab_width: usize) {
+        self.tab_width = tab_width;
     }
 
     /// True if a redraw is needed

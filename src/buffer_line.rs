@@ -1,7 +1,8 @@
 #[cfg(not(feature = "std"))]
 use alloc::{string::String, vec::Vec};
+use unicode_script::Script;
 
-use crate::{Align, AttrsList, LayoutLine, ShapeLine, Wrap};
+use crate::{fallback::FontFallbackIter, Align, AttrsList, LayoutLine, ShapeLine, Wrap};
 
 /// A line (or paragraph) of text that is shaped and laid out
 #[derive(Clone)]
@@ -15,13 +16,19 @@ pub struct TextLayoutLine {
     start_index: usize,
     shape_opt: Option<ShapeLine>,
     layout_opt: Option<Vec<LayoutLine>>,
+    tab_width: usize,
 }
 
 impl TextLayoutLine {
     /// Create a new line with the given text and attributes list
     /// Cached shaping and layout can be done using the [`Self::shape`] and
     /// [`Self::layout`] functions
-    pub fn new<T: Into<String>>(text: T, attrs_list: AttrsList, start_index: usize) -> Self {
+    pub fn new<T: Into<String>>(
+        text: T,
+        attrs_list: AttrsList,
+        start_index: usize,
+        tab_width: usize,
+    ) -> Self {
         Self {
             text: text.into(),
             attrs_list,
@@ -30,6 +37,7 @@ impl TextLayoutLine {
             start_index,
             shape_opt: None,
             layout_opt: None,
+            tab_width,
         }
     }
 
@@ -153,7 +161,7 @@ impl TextLayoutLine {
         let attrs_list = self.attrs_list.split_off(index);
         self.reset();
 
-        let mut new = Self::new(text, attrs_list, self.start_index + index);
+        let mut new = Self::new(text, attrs_list, self.start_index + index, self.tab_width);
         new.wrap = self.wrap;
         new
     }
@@ -178,7 +186,24 @@ impl TextLayoutLine {
     /// Shape line, will cache results
     pub fn shape(&mut self) -> &ShapeLine {
         if self.shape_opt.is_none() {
-            self.shape_opt = Some(ShapeLine::new(&self.text, &self.attrs_list));
+            let attrs = self.attrs_list.defaults();
+            let family = attrs.family;
+            let mut font_iter = FontFallbackIter::new(attrs, family, vec![Script::Latin]);
+            let font = font_iter.next().expect("no default font found");
+            let glyph_buffer = crate::shape::shape(&font, " ", false);
+            let pos = glyph_buffer.1[0];
+            let metrics = font.metrics();
+            let font_scale = metrics.units_per_em as f32;
+            let space_width = pos.x_advance as f32 * attrs.font_size / font_scale;
+            let mut accum_x_advance: f32 = 0.0;
+
+            self.shape_opt = Some(ShapeLine::new(
+                &self.text,
+                &self.attrs_list,
+                &mut accum_x_advance,
+                space_width,
+                self.tab_width,
+            ));
             self.layout_opt = None;
         }
         self.shape_opt.as_ref().expect("shape not found")

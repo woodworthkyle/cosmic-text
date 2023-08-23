@@ -35,7 +35,11 @@ fn shape_raw(font: &Font, run: &str, span_rtl: bool) -> GlyphBuffer {
     rustybuzz::shape(font.rustybuzz(), &[], buffer)
 }
 
-fn shape(font: &Font, run: &str, span_rtl: bool) -> Arc<(Vec<GlyphInfo>, Vec<GlyphPosition>)> {
+pub(crate) fn shape(
+    font: &Font,
+    run: &str,
+    span_rtl: bool,
+) -> Arc<(Vec<GlyphInfo>, Vec<GlyphPosition>)> {
     let key = (font.id(), run.to_string());
     if let Some(buffer) = SHAPED_RUNS.get(&key) {
         return buffer.value().clone();
@@ -57,6 +61,9 @@ fn shape_fallback(
     start_run: usize,
     end_run: usize,
     span_rtl: bool,
+    accum_x_advance: &mut f32,
+    space_width: f32,
+    tab_width: usize,
 ) -> (Vec<ShapeGlyph>, Vec<usize>) {
     let run = &line[start_run..end_run];
 
@@ -92,9 +99,26 @@ fn shape_fallback(
             .map(|h| h * attrs.font_size / font_scale)
             .unwrap_or(0.0);
 
-        if info.glyph_id == 0 {
+        let x_advance = if info.glyph_id == 0 {
             missing.push(start_glyph);
-        }
+            0.0
+        } else {
+            x_advance
+        };
+
+        let x_advance = if info.glyph_id == 5 {
+            let tab_width = space_width * tab_width as f32;
+            let remaining = *accum_x_advance % tab_width;
+            if tab_width - remaining < space_width {
+                tab_width - remaining + tab_width
+            } else {
+                tab_width - remaining
+            }
+        } else {
+            x_advance
+        };
+
+        *accum_x_advance += x_advance;
 
         glyphs.push(ShapeGlyph {
             start: start_glyph,
@@ -151,6 +175,9 @@ fn shape_run(
     start_run: usize,
     end_run: usize,
     span_rtl: bool,
+    accum_x_advance: &mut f32,
+    space_width: f32,
+    tab_width: usize,
 ) -> Vec<ShapeGlyph> {
     //TODO: use smallvec?
     let mut scripts = Vec::new();
@@ -174,8 +201,17 @@ fn shape_run(
 
     let font = font_iter.next().expect("no default font found");
 
-    let (mut glyphs, mut missing) =
-        shape_fallback(&font, line, attrs_list, start_run, end_run, span_rtl);
+    let (mut glyphs, mut missing) = shape_fallback(
+        &font,
+        line,
+        attrs_list,
+        start_run,
+        end_run,
+        span_rtl,
+        accum_x_advance,
+        space_width,
+        tab_width,
+    );
 
     //TODO: improve performance!
     while !missing.is_empty() {
@@ -188,8 +224,17 @@ fn shape_run(
             "Evaluating fallback with font '{}'",
             FONT_SYSTEM.face_name(font.id())
         );
-        let (mut fb_glyphs, fb_missing) =
-            shape_fallback(&font, line, attrs_list, start_run, end_run, span_rtl);
+        let (mut fb_glyphs, fb_missing) = shape_fallback(
+            &font,
+            line,
+            attrs_list,
+            start_run,
+            end_run,
+            span_rtl,
+            accum_x_advance,
+            space_width,
+            tab_width,
+        );
 
         // Insert all matching glyphs
         let mut fb_i = 0;
@@ -324,6 +369,9 @@ impl ShapeWord {
         word_range: Range<usize>,
         level: unicode_bidi::Level,
         blank: bool,
+        accum_x_advance: &mut f32,
+        space_width: f32,
+        tab_width: usize,
     ) -> Self {
         let word = &line[word_range.clone()];
 
@@ -344,7 +392,14 @@ impl ShapeWord {
             if !attrs.compatible(&attrs_egc) {
                 //TODO: more efficient
                 glyphs.append(&mut shape_run(
-                    line, attrs_list, start_run, start_egc, span_rtl,
+                    line,
+                    attrs_list,
+                    start_run,
+                    start_egc,
+                    span_rtl,
+                    accum_x_advance,
+                    space_width,
+                    tab_width,
                 ));
 
                 start_run = start_egc;
@@ -359,6 +414,9 @@ impl ShapeWord {
                 start_run,
                 word_range.end,
                 span_rtl,
+                accum_x_advance,
+                space_width,
+                tab_width,
             ));
         }
 
@@ -392,6 +450,9 @@ impl ShapeSpan {
         span_range: Range<usize>,
         line_rtl: bool,
         level: unicode_bidi::Level,
+        accum_x_advance: &mut f32,
+        space_width: f32,
+        tab_width: usize,
     ) -> Self {
         let span = &line[span_range.start..span_range.end];
 
@@ -421,6 +482,9 @@ impl ShapeSpan {
                     (span_range.start + start_word)..(span_range.start + start_lb),
                     level,
                     false,
+                    accum_x_advance,
+                    space_width,
+                    tab_width,
                 ));
             }
             if start_lb < end_lb {
@@ -433,6 +497,9 @@ impl ShapeSpan {
                             ..(span_range.start + start_lb + i + c.len_utf8()),
                         level,
                         true,
+                        accum_x_advance,
+                        space_width,
+                        tab_width,
                     ));
                 }
             }
@@ -476,7 +543,13 @@ impl ShapeLine {
     /// # Panics
     ///
     /// Will panic if `line` contains more than one paragraph.
-    pub fn new(line: &str, attrs_list: &AttrsList) -> Self {
+    pub fn new(
+        line: &str,
+        attrs_list: &AttrsList,
+        accum_x_advance: &mut f32,
+        space_width: f32,
+        tab_width: usize,
+    ) -> Self {
         let mut spans = Vec::new();
 
         let bidi = unicode_bidi::BidiInfo::new(line, None);
@@ -511,6 +584,9 @@ impl ShapeLine {
                         start..i,
                         line_rtl,
                         run_level,
+                        accum_x_advance,
+                        space_width,
+                        tab_width,
                     ));
                     start = i;
                     run_level = new_level;
@@ -522,6 +598,9 @@ impl ShapeLine {
                 start..line_range.end,
                 line_rtl,
                 run_level,
+                accum_x_advance,
+                space_width,
+                tab_width,
             ));
             line_rtl
         };
