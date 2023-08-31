@@ -79,7 +79,8 @@ fn shape_fallback(
 
     let mut missing = Vec::new();
     let mut glyphs = Vec::with_capacity(glyph_infos.len());
-    for (info, pos) in glyph_infos.iter().zip(glyph_positions.iter()) {
+    let mut iter = glyph_infos.iter().zip(glyph_positions.iter()).peekable();
+    while let Some((info, pos)) = iter.next() {
         let start_glyph = start_run + info.cluster as usize;
         let attrs = attrs_list.get_span(start_glyph);
         let x_advance = pos.x_advance as f32 * attrs.font_size / font_scale;
@@ -106,7 +107,13 @@ fn shape_fallback(
             x_advance
         };
 
-        let x_advance = if info.glyph_id == 5 {
+        let is_tab = if let Some((next_info, _)) = iter.peek() {
+            &run[info.cluster as usize..next_info.cluster as usize] == "\t"
+        } else {
+            &run[info.cluster as usize..] == "\t"
+        };
+
+        let x_advance = if info.glyph_id != 0 && is_tab {
             let tab_width = space_width * tab_width as f32;
             let remaining = *accum_x_advance % tab_width;
             if tab_width - remaining < space_width {
