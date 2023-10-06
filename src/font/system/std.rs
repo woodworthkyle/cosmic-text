@@ -39,6 +39,10 @@ impl FontSystem {
 
         let mut db = fontdb::Database::new();
         {
+            db.set_monospace_family("Fira Mono");
+            db.set_sans_serif_family("Fira Sans");
+            db.set_serif_family("DejaVu Serif");
+
             #[cfg(not(target_arch = "wasm32"))]
             let now = std::time::Instant::now();
 
@@ -50,11 +54,6 @@ impl FontSystem {
             for source in fonts {
                 db.load_font_source(source);
             }
-
-            //TODO: configurable default fonts
-            db.set_monospace_family("Fira Mono");
-            db.set_sans_serif_family("Fira Sans");
-            db.set_serif_family("DejaVu Serif");
 
             #[cfg(not(target_arch = "wasm32"))]
             log::info!(
