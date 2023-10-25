@@ -100,20 +100,20 @@ fn shape_fallback(
             .map(|h| h * attrs.font_size / font_scale)
             .unwrap_or(0.0);
 
-        let x_advance = if info.glyph_id == 0 {
-            missing.push(start_glyph);
-            0.0
-        } else {
-            x_advance
-        };
-
         let is_tab = if let Some((next_info, _)) = iter.peek() {
             &run[info.cluster as usize..next_info.cluster as usize] == "\t"
         } else {
             &run[info.cluster as usize..] == "\t"
         };
 
-        let x_advance = if info.glyph_id != 0 && is_tab {
+        let x_advance = if info.glyph_id == 0 && !is_tab {
+            missing.push(start_glyph);
+            0.0
+        } else {
+            x_advance
+        };
+
+        let x_advance = if is_tab {
             let tab_width = space_width * tab_width as f32;
             let remaining = *accum_x_advance % tab_width;
             if tab_width - remaining < space_width {
@@ -130,7 +130,11 @@ fn shape_fallback(
         glyphs.push(ShapeGlyph {
             start: start_glyph,
             end: end_run, // Set later
-            x_advance,
+            x_advance: if info.glyph_id == 0 && !is_tab {
+                space_width
+            } else {
+                x_advance
+            },
             y_advance,
             x_offset,
             y_offset,
@@ -141,6 +145,7 @@ fn shape_fallback(
             font_size: attrs.font_size,
             cap_height,
             font_id: font.id(),
+            is_tab,
             glyph_id: info.glyph_id.try_into().expect("failed to cast glyph ID"),
             //TODO: color should not be related to shaping
             color: attrs.color,
@@ -328,6 +333,7 @@ pub struct ShapeGlyph {
     pub font_id: fontdb::ID,
     pub glyph_id: u16,
     pub color: Color,
+    pub is_tab: bool,
     pub metadata: usize,
 }
 
@@ -356,6 +362,7 @@ impl ShapeGlyph {
             y_int,
             color: self.color,
             metadata: self.metadata,
+            is_tab: self.is_tab,
         }
     }
 }

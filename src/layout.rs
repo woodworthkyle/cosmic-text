@@ -53,6 +53,8 @@ pub struct LayoutGlyph {
     pub color: Color,
     /// Metadata from `Attrs`
     pub metadata: usize,
+    /// if this glyph is tab character
+    pub is_tab: bool,
 }
 
 /// A line of laid out glyphs
