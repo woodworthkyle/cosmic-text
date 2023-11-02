@@ -2,7 +2,7 @@
 
 use std::{collections::HashMap, sync::Arc};
 
-use fontdb::{Family, Query};
+use fontdb::{Family, Query, Stretch, Style, Weight};
 use once_cell::sync::Lazy;
 use parking_lot::RwLock;
 
@@ -16,6 +16,7 @@ pub struct FontSystem {
     db: RwLock<fontdb::Database>,
     font_cache: RwLock<HashMap<fontdb::ID, Option<Arc<Font>>>>,
     quey_cache: RwLock<HashMap<FontAttrs, Option<fontdb::ID>>>,
+    monospace_cache: RwLock<HashMap<(Style, Weight, Stretch), Option<fontdb::ID>>>,
 }
 
 impl FontSystem {
@@ -73,6 +74,7 @@ impl FontSystem {
             db: RwLock::new(db),
             font_cache: RwLock::new(HashMap::new()),
             quey_cache: RwLock::new(HashMap::new()),
+            monospace_cache: RwLock::new(HashMap::new()),
         }
     }
 
@@ -129,6 +131,26 @@ impl FontSystem {
                     stretch: attrs.stretch,
                 })
             })
+    }
+
+    pub fn query_monospace(&self, attrs: &Attrs) -> Option<fontdb::ID> {
+        let key = (attrs.style, attrs.weight, attrs.stretch);
+        if let Some(f) = self.monospace_cache.read().get(&key) {
+            return *f;
+        }
+
+        for face in self.db.read().faces() {
+            if face.monospaced
+                && face.weight == attrs.weight
+                && face.stretch == attrs.stretch
+                && face.style == attrs.style
+            {
+                self.monospace_cache.write().insert(key, Some(face.id));
+                return Some(face.id);
+            }
+        }
+        self.monospace_cache.write().insert(key, None);
+        None
     }
 
     pub fn face_name(&self, id: fontdb::ID) -> String {

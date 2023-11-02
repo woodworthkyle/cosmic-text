@@ -419,7 +419,7 @@ impl<'a> Iterator for ParseList<'a> {
         let name = core::str::from_utf8(self.source.get(start..end)?)
             .ok()?
             .trim();
-        Some(match name {
+        Some(match name.to_lowercase().as_str() {
             "serif" => FamilyOwned::Serif,
             "sans-serif" => FamilyOwned::SansSerif,
             "monospace" => FamilyOwned::Monospace,

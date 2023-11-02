@@ -94,6 +94,13 @@ impl<'a> Iterator for FontFallbackIter<'a> {
                     return Some(font);
                 }
             }
+            if default_family == &FamilyOwned::Monospace {
+                if let Some(id) = FONT_SYSTEM.query_monospace(&self.attrs) {
+                    if let Some(font) = FONT_SYSTEM.get_font(id) {
+                        return Some(font);
+                    }
+                }
+            }
         }
 
         while self.script_i.0 < self.scripts.len() {
