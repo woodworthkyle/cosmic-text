@@ -10,12 +10,16 @@ use crate::{Attrs, FamilyOwned, Font, FONT_SYSTEM};
 
 use self::platform::*;
 
-#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows",)))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "ios", target_os = "windows",)))]
 #[path = "other.rs"]
 mod platform;
 
 #[cfg(target_os = "macos")]
 #[path = "macos.rs"]
+mod platform;
+
+#[cfg(target_os = "ios")]
+#[path = "ios.rs"]
 mod platform;
 
 #[cfg(target_os = "linux")]
